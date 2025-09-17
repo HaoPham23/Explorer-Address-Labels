@@ -345,9 +345,6 @@ function renderOsintManager(container, sources, onChange) {
     row.style.alignItems = 'center';
     const name = document.createElement('span');
     name.textContent = s.name;
-    const pat = document.createElement('code');
-    pat.textContent = s.pattern;
-    pat.style.whiteSpace = 'pre-wrap';
     const del = document.createElement('button');
     del.textContent = 'Remove';
     del.addEventListener('click', async () => {
@@ -356,7 +353,6 @@ function renderOsintManager(container, sources, onChange) {
       await onChange(updated);
     });
     row.appendChild(name);
-    row.appendChild(pat);
     row.appendChild(del);
     list.appendChild(row);
   });
