@@ -1,5 +1,7 @@
 const LABELS_KEY = 'labels';
 let labels = {};
+// Debounce timer for expensive annotate work
+let scheduleTimer = null;
 
 // Re-injection guard: if the script is injected again (e.g. via chrome.scripting)
 // avoid double observers / listeners.
@@ -16,21 +18,58 @@ if (window.__explabel_injected) {
 }
 
 async function init() {
+  injectStyle();
   await loadLabels();
   annotatePage();
-  const observer = new MutationObserver(() => annotatePage());
+  const observer = new MutationObserver(() => scheduleAnnotate());
   observer.observe(document.documentElement, { childList: true, subtree: true });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes[LABELS_KEY]) {
       labels = changes[LABELS_KEY].newValue || {};
-      annotatePage();
+      scheduleAnnotate();
     }
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'labelsUpdated') {
-      loadLabels().then(annotatePage);
+      loadLabels().then(scheduleAnnotate);
     }
   });
+}
+
+function injectStyle() {
+  if (document.getElementById('explabel-style')) return; // already injected
+  const css = `
+    .explabel-edit {
+      display: inline-block;
+      margin-left: 4px;
+      padding: 0 4px;
+      border-radius: 4px;
+      background: #f0f0f0;
+      color: #666;
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .explabel-edit:hover {
+      background: #e0e0e0;
+      color: #333;
+    }
+    .explabel-wrap-full, .explabel-wrap-short {
+      display: inline-flex;
+      align-items: center;
+    }
+    .explabel-label {
+      color: #1f6feb;
+      font-weight: 600;
+    }
+    .explabel-addr-text {
+      font-family: monospace;
+    }
+  `;
+  const style = document.createElement('style');
+  style.id = 'explabel-style';
+  style.textContent = css;
+  document.head.appendChild(style);
 }
 
 async function loadLabels() {
@@ -38,11 +77,22 @@ async function loadLabels() {
   labels = res[LABELS_KEY] || {};
 }
 
+// Debounced annotate helper
+function scheduleAnnotate() {
+  if (scheduleTimer) return;
+  scheduleTimer = setTimeout(() => {
+    scheduleTimer = null;
+    annotatePage();
+  }, 250);
+}
+
 function annotatePage() {
-  updateExistingLabelSpans();
+  // Fast path: if we have no labels stored yet, only ensure edit buttons on anchors.
+  const hasLabels = Object.keys(labels).length > 0;
   updateExistingShortWrappers();
+  updateExistingFullWrappers();
   replaceAnchorTexts();
-  replaceTextNodes();
+  if (hasLabels) replaceTextNodes();
 }
 
 function replaceAnchorTexts() {
@@ -64,10 +114,23 @@ function replaceAnchorTexts() {
       delete a.dataset.addr;
       a.removeAttribute('title');
     }
+    // Always ensure an edit button exists after the anchor
+    ensureEditAfter(a, key);
   });
 }
 
+function ensureEditAfter(element, addr) {
+  const next = element.nextElementSibling;
+  if (next && next.classList.contains('explabel-edit') && next.dataset.addr === addr) {
+    return next; // Already exists
+  }
+  const btn = createEditButton(addr);
+  element.insertAdjacentElement('afterend', btn);
+  return btn;
+}
+
 function replaceTextNodes() {
+  const MAX_NODES = 400;
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => {
       if (!n.nodeValue || !n.parentElement) return NodeFilter.FILTER_REJECT;
@@ -76,14 +139,20 @@ function replaceTextNodes() {
       if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
       if (n.parentElement.closest('a')) return NodeFilter.FILTER_REJECT; // anchors handled separately
       if (n.parentElement.closest('.explabel-wrap-short')) return NodeFilter.FILTER_REJECT;
+      if (n.parentElement.closest('.explabel-wrap-full')) return NodeFilter.FILTER_REJECT;
       return /(0x[0-9a-fA-F]{40}|0x[0-9a-fA-F]{4,20}(?:…|\.{3})[0-9a-fA-F]{4,20})/.test(n.nodeValue)
         ? NodeFilter.FILTER_ACCEPT
         : NodeFilter.FILTER_REJECT;
     }
   });
   const toProcess = [];
-  let node; while ((node = walker.nextNode())) toProcess.push(node);
+  let node; let counter = 0; let more = false;
+  while ((node = walker.nextNode())) {
+    toProcess.push(node);
+    if (++counter >= MAX_NODES) { more = true; break; }
+  }
   toProcess.forEach(n => replaceMatchesInTextNode(n));
+  if (more) scheduleAnnotate(); // continue processing remaining nodes later
 }
 
 // ---------- replacement helpers ----------
@@ -101,16 +170,33 @@ function replaceFullAddresses(textNode) {
   while ((m = re.exec(text)) !== null) {
     const addr = m[0];
     const key = normalize(addr);
-    const label = labels[key]?.label;
-    if (!label) continue;
     if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-    const span = document.createElement('span');
-    span.className = 'explabel-label';
-    span.dataset.addr = key;
-    span.dataset.original = addr;
-    span.textContent = label;
-    span.title = addr;
-    frag.appendChild(span);
+    
+    // Create wrapper for the address
+    const wrap = document.createElement('span');
+    wrap.className = 'explabel-wrap-full';
+    wrap.dataset.addr = key;
+    wrap.dataset.original = addr;
+    
+    // Add either label or original address text
+    const label = labels[key]?.label;
+    if (label) {
+      const span = document.createElement('span');
+      span.className = 'explabel-label';
+      span.textContent = label;
+      span.title = addr;
+      wrap.appendChild(span);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'explabel-addr-text';
+      span.textContent = addr;
+      wrap.appendChild(span);
+    }
+    
+    // Add edit button
+    wrap.appendChild(createEditButton(key));
+    
+    frag.appendChild(wrap);
     last = re.lastIndex;
     changed = true;
   }
@@ -148,6 +234,9 @@ function replaceShortAddresses(textNode) {
     span.textContent = ` (${label})`;
     span.title = full;
     wrap.appendChild(span);
+    
+    // Add edit button
+    wrap.appendChild(createEditButton(full));
 
     frag.appendChild(wrap);
     last = reShort.lastIndex;
@@ -205,6 +294,13 @@ function updateExistingShortWrappers() {
         labelSpan.textContent = txt;
         labelSpan.title = key;
       }
+      
+      // Ensure edit button exists
+      let editBtn = wrap.querySelector('.explabel-edit');
+      if (!editBtn) {
+        editBtn = createEditButton(key);
+        wrap.appendChild(editBtn);
+      }
     } else {
       // remove wrapper entirely and restore original shortened text
       const orig = wrap.dataset.original || wrap.textContent;
@@ -212,6 +308,69 @@ function updateExistingShortWrappers() {
       wrap.replaceWith(n);
     }
   });
+}
+
+function updateExistingFullWrappers() {
+  document.querySelectorAll('span.explabel-wrap-full').forEach(wrap => {
+    const key = wrap.dataset.addr;
+    const label = labels[key]?.label;
+    const orig = wrap.dataset.original;
+    
+    // Update inner content based on label presence
+    let contentSpan = wrap.querySelector('.explabel-label, .explabel-addr-text');
+    if (!contentSpan) {
+      contentSpan = document.createElement('span');
+      wrap.insertBefore(contentSpan, wrap.firstChild);
+    }
+    
+    if (label) {
+      contentSpan.className = 'explabel-label';
+      contentSpan.textContent = label;
+      contentSpan.title = orig;
+    } else {
+      contentSpan.className = 'explabel-addr-text';
+      contentSpan.textContent = orig;
+      contentSpan.removeAttribute('title');
+    }
+    
+    // Ensure edit button exists
+    let editBtn = wrap.querySelector('.explabel-edit');
+    if (!editBtn) {
+      editBtn = createEditButton(key);
+      wrap.appendChild(editBtn);
+    } else if (editBtn.dataset.addr !== key) {
+      editBtn.dataset.addr = key;
+    }
+  });
+}
+
+function createEditButton(addr) {
+  const b = document.createElement('span');
+  b.className = 'explabel-edit';
+  b.dataset.addr = addr;
+  b.textContent = '✎';
+  b.title = 'Edit label';
+  b.addEventListener('click', onEditClick);
+  return b;
+}
+
+async function onEditClick(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  const addr = e.currentTarget?.dataset?.addr;
+  if (!addr) return;
+  const current = labels[addr]?.label || '';
+  const next = prompt(`Label for ${addr}`, current);
+  if (next === null) return;
+  const { [LABELS_KEY]: all = {} } = await chrome.storage.local.get(LABELS_KEY);
+  if (next.trim()) {
+    all[addr] = { label: next.trim(), updatedAt: Date.now() };
+  } else {
+    delete all[addr];
+  }
+  await chrome.storage.local.set({ [LABELS_KEY]: all });
+  await loadLabels();
+  annotatePage();
 }
 
 function extractAddressFromUrl(url) {
