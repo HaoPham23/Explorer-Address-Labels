@@ -1,7 +1,19 @@
 const LABELS_KEY = 'labels';
 let labels = {};
 
-init();
+// Re-injection guard: if the script is injected again (e.g. via chrome.scripting)
+// avoid double observers / listeners.
+if (window.__explabel_injected) {
+  // Already active – just refresh data & annotations quickly.
+  try {
+    loadLabels().then(annotatePage);
+  } catch (_) {
+    /* no-op */
+  }
+} else {
+  window.__explabel_injected = true;
+  init();
+}
 
 async function init() {
   await loadLabels();
@@ -28,6 +40,7 @@ async function loadLabels() {
 
 function annotatePage() {
   updateExistingLabelSpans();
+  updateExistingShortWrappers();
   replaceAnchorTexts();
   replaceTextNodes();
 }
@@ -62,7 +75,10 @@ function replaceTextNodes() {
       const tag = n.parentElement.tagName;
       if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
       if (n.parentElement.closest('a')) return NodeFilter.FILTER_REJECT; // anchors handled separately
-      return /0x[0-9a-fA-F]{40}/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      if (n.parentElement.closest('.explabel-wrap-short')) return NodeFilter.FILTER_REJECT;
+      return /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{4,20}(?:…|\.{3})[0-9a-fA-F]{4,20})/.test(n.nodeValue)
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
     }
   });
   const toProcess = [];
@@ -70,9 +86,16 @@ function replaceTextNodes() {
   toProcess.forEach(n => replaceMatchesInTextNode(n));
 }
 
+// ---------- replacement helpers ----------
+
 function replaceMatchesInTextNode(textNode) {
+  if (replaceFullAddresses(textNode)) return;
+  replaceShortAddresses(textNode);
+}
+
+function replaceFullAddresses(textNode) {
   const text = textNode.nodeValue;
-  const re = /0x[0-9a-fA-F]{40}/g;
+  const re = /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40})/g;
   let m, last = 0, changed = false;
   const frag = document.createDocumentFragment();
   while ((m = re.exec(text)) !== null) {
@@ -91,9 +114,63 @@ function replaceMatchesInTextNode(textNode) {
     last = re.lastIndex;
     changed = true;
   }
-  if (!changed) return;
+  if (!changed) return false;
   if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
   textNode.parentNode.replaceChild(frag, textNode);
+  return true;
+}
+
+function replaceShortAddresses(textNode) {
+  const text = textNode.nodeValue;
+  const reShort = /(0x[0-9a-fA-F]{4,20})(?:…|\.{3})([0-9a-fA-F]{4,20})/g;
+  let m, last = 0, changed = false;
+  const frag = document.createDocumentFragment();
+  while ((m = reShort.exec(text)) !== null) {
+    const pref = m[1].toLowerCase();
+    const suff = m[2].toLowerCase();
+    const full = findMatchForShort(pref, suff);
+    if (!full) continue; // no unique match
+    const label = labels[full]?.label;
+    if (!label) continue;
+    if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+
+    const wrap = document.createElement('span');
+    wrap.className = 'explabel-wrap-short';
+    wrap.dataset.addr = full;
+    wrap.dataset.original = m[0];
+
+    // keep the original shortened address text
+    wrap.appendChild(document.createTextNode(m[0]));
+
+    // append the label in parentheses
+    const span = document.createElement('span');
+    span.className = 'explabel-label-short';
+    span.textContent = ` (${label})`;
+    span.title = full;
+    wrap.appendChild(span);
+
+    frag.appendChild(wrap);
+    last = reShort.lastIndex;
+    changed = true;
+  }
+  if (!changed) return false;
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  textNode.parentNode.replaceChild(frag, textNode);
+  return true;
+}
+
+function findMatchForShort(prefix, suffix) {
+  let found = '';
+  for (const key of Object.keys(labels)) {
+    if (key.startsWith(prefix) && key.endsWith(suffix)) {
+      if (!found) {
+        found = key;
+      } else {
+        return ''; // ambiguous
+      }
+    }
+  }
+  return found;
 }
 
 function updateExistingLabelSpans() {
@@ -111,9 +188,39 @@ function updateExistingLabelSpans() {
   });
 }
 
+function updateExistingShortWrappers() {
+  document.querySelectorAll('span.explabel-wrap-short').forEach(wrap => {
+    const key = wrap.dataset.addr;
+    const label = labels[key]?.label;
+    const labelSpan = wrap.querySelector('.explabel-label-short');
+    if (label) {
+      const txt = ` (${label})`;
+      if (!labelSpan) {
+        const s = document.createElement('span');
+        s.className = 'explabel-label-short';
+        s.textContent = txt;
+        s.title = key;
+        wrap.appendChild(s);
+      } else if (labelSpan.textContent !== txt) {
+        labelSpan.textContent = txt;
+        labelSpan.title = key;
+      }
+    } else {
+      // remove wrapper entirely and restore original shortened text
+      const orig = wrap.dataset.original || wrap.textContent;
+      const n = document.createTextNode(orig);
+      wrap.replaceWith(n);
+    }
+  });
+}
+
 function extractAddressFromUrl(url) {
   if (!url) return '';
-  const m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  // Path forms like /address/<addr> or /token/<addr>
+  let m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  if (m) return m[2];
+  // Query-param forms ?a=<addr>, ?address=<addr>, ?addr=<addr>
+  m = url.match(/[?&#](a|address|addr)=?(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
   return m ? m[2] : '';
 }
 
