@@ -35,12 +35,9 @@
   <div id="msg"></div>
   <div id="error"></div>
 
-  <!-- OSINT quick-links -->
+  <!-- OSINT quick-links (dynamic) -->
   <div class="row muted">OSINT</div>
-  <div class="row" style="display:flex; gap:8px;">
-    <button id="arkhamBtn">Open in Arkham</button>
-    <button id="debankBtn">Open in DeBank</button>
-  </div>
+  <div id="osintButtons" class="row" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
 
   <hr style="margin:12px 0; border:none; border-top:1px solid #eee;">
   <div class="row muted">Import/Export</div>
@@ -54,6 +51,17 @@
     <button id="exportBtn" style="margin-left:auto;">Export</button>
     <button id="importBtn">Import</button>
     <input id="fileInput" type="file" accept=".json,.csv,text/csv,application/json" style="display:none;" />
+  </div>
+
+  <hr style="margin:12px 0; border:none; border-top:1px solid #eee;">
+  <div class="row muted">OSINT sources</div>
+  <div id="osintList" class="row"></div>
+  <div class="row" style="display:flex; gap:8px;">
+    <input id="osintName" type="text" placeholder="Site name (e.g., Arkham)">
+    <input id="osintPattern" type="text" placeholder="URL pattern (e.g., intel.arkm.com/explorer/address/{})">
+  </div>
+  <div class="actions">
+    <button id="osintAddBtn">Add source</button>
   </div>
 
   <script src="popup.js"></script>

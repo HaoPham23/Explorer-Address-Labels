@@ -1,7 +1,10 @@
 const LABELS_KEY = 'labels';
+const OSINT_KEY = 'osint_sources';
+let osintSources = [];
 let labels = {};
 // Debounce timer for expensive annotate work
 let scheduleTimer = null;
+let explabelMenu = null; let explabelMenuAddr = null; let explabelOutside = null; let explabelKeyHandler = null;
 
 // Re-injection guard: if the script is injected again (e.g. via chrome.scripting)
 // avoid double observers / listeners.
@@ -20,6 +23,7 @@ if (window.__explabel_injected) {
 async function init() {
   injectStyle();
   await loadLabels();
+  await loadOsintSources();
   annotatePage();
   const observer = new MutationObserver(() => scheduleAnnotate());
   observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -27,6 +31,9 @@ async function init() {
     if (area === 'local' && changes[LABELS_KEY]) {
       labels = changes[LABELS_KEY].newValue || {};
       scheduleAnnotate();
+    }
+    if (area === 'local' && changes[OSINT_KEY]) {
+      osintSources = changes[OSINT_KEY].newValue || [];
     }
   });
   chrome.runtime.onMessage.addListener((msg) => {
@@ -65,6 +72,31 @@ function injectStyle() {
     .explabel-addr-text {
       font-family: monospace;
     }
+    /* inline menu */
+    .explabel-menu {
+      position: fixed;
+      z-index: 2147483647;
+      background:#fff;
+      border:1px solid #ddd;
+      border-radius:6px;
+      box-shadow:0 4px 16px rgba(0,0,0,.12);
+      padding:4px;
+      min-width:160px;
+      font-size:12px;
+    }
+    .explabel-menu button{
+      display:block;
+      width:100%;
+      background:none;
+      border:none;
+      text-align:left;
+      padding:6px 8px;
+      cursor:pointer;
+      border-radius:4px;
+    }
+    .explabel-menu button:hover{
+      background:#f2f2f2;
+    }
   `;
   const style = document.createElement('style');
   style.id = 'explabel-style';
@@ -75,6 +107,12 @@ function injectStyle() {
 async function loadLabels() {
   const res = await chrome.storage.local.get(LABELS_KEY);
   labels = res[LABELS_KEY] || {};
+}
+
+// Load OSINT sources list from storage
+async function loadOsintSources() {
+  const res = await chrome.storage.local.get(OSINT_KEY);
+  osintSources = res[OSINT_KEY] || [];
 }
 
 // Debounced annotate helper
@@ -102,11 +140,20 @@ function replaceAnchorTexts() {
     if (!addr) return;
     const key = normalize(addr);
     const label = labels[key]?.label;
+    
     if (label) {
       if (!a.dataset.explabelOrig) a.dataset.explabelOrig = a.textContent;
       a.dataset.addr = key;
-      if (a.textContent !== label) a.textContent = label;
-      a.title = addr;
+      
+      // Clear existing content
+      a.textContent = '';
+      
+      // Create and append label span
+      const span = document.createElement('span');
+      span.className = 'explabel-label';
+      span.textContent = label;
+      span.title = addr;
+      a.appendChild(span);
     } else if (a.dataset.explabelOrig) {
       // label removed; restore original
       a.textContent = a.dataset.explabelOrig;
@@ -349,7 +396,7 @@ function createEditButton(addr) {
   b.className = 'explabel-edit';
   b.dataset.addr = addr;
   b.textContent = '✎';
-  b.title = 'Edit label';
+  b.title = 'Edit / OSINT';
   b.addEventListener('click', onEditClick);
   return b;
 }
@@ -357,20 +404,63 @@ function createEditButton(addr) {
 async function onEditClick(e) {
   e.stopPropagation();
   e.preventDefault();
-  const addr = e.currentTarget?.dataset?.addr;
+  const btn = e.currentTarget;
+  const addr = btn?.dataset?.addr;
   if (!addr) return;
+  if (explabelMenu && explabelMenuAddr === addr) { closeMenu(); return; }
+  openMenuAt(btn, addr);
+}
+
+async function editLabel(addr) {
   const current = labels[addr]?.label || '';
   const next = prompt(`Label for ${addr}`, current);
-  if (next === null) return;
-  const { [LABELS_KEY]: all = {} } = await chrome.storage.local.get(LABELS_KEY);
+  if (next === null) return; // cancelled
+  const store = (await chrome.storage.local.get(LABELS_KEY))[LABELS_KEY] || {};
   if (next.trim()) {
-    all[addr] = { label: next.trim(), updatedAt: Date.now() };
+    store[addr] = { label: next.trim(), updatedAt: Date.now() };
   } else {
-    delete all[addr];
+    delete store[addr];
   }
-  await chrome.storage.local.set({ [LABELS_KEY]: all });
+  await chrome.storage.local.set({ [LABELS_KEY]: store });
   await loadLabels();
   annotatePage();
+}
+
+function openMenuAt(anchorEl, addr) {
+  closeMenu();
+  const menu = document.createElement('div');
+  menu.className = 'explabel-menu';
+  const mk = (text) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = text; return b; };
+  const bEdit = mk('Edit label…');
+  bEdit.addEventListener('click', async (e) => { e.stopPropagation(); await editLabel(addr); closeMenu(); });
+  menu.appendChild(bEdit);
+
+  const list = (osintSources && osintSources.length) ? osintSources : defaultOsintSources();
+  for (const s of list) {
+    const btn = mk(`Open in ${s.name}`);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.open(buildOsintUrl(s.pattern, addr), '_blank', 'noopener');
+      closeMenu();
+    });
+    menu.appendChild(btn);
+  }
+  const r = anchorEl.getBoundingClientRect();
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.left = r.left + 'px';
+  document.body.appendChild(menu);
+  explabelMenu = menu; explabelMenuAddr = addr;
+  explabelOutside = (ev) => { if (!menu.contains(ev.target)) closeMenu(); };
+  explabelKeyHandler = (ev) => { if (ev.key === 'Escape') closeMenu(); };
+  document.addEventListener('mousedown', explabelOutside, true);
+  document.addEventListener('keydown', explabelKeyHandler, true);
+}
+
+function closeMenu() {
+  if (explabelMenu && explabelMenu.parentNode) explabelMenu.parentNode.removeChild(explabelMenu);
+  if (explabelOutside) document.removeEventListener('mousedown', explabelOutside, true);
+  if (explabelKeyHandler) document.removeEventListener('keydown', explabelKeyHandler, true);
+  explabelMenu = null; explabelMenuAddr = null; explabelOutside = null; explabelKeyHandler = null;
 }
 
 function extractAddressFromUrl(url) {
@@ -389,4 +479,20 @@ function normalize(a) {
   if (s.toLowerCase().startsWith('ronin:')) s = '0x' + s.slice(6);
   const m = s.match(/0x[0-9a-fA-F]{40}/);
   return m ? m[0].toLowerCase() : '';
+}
+
+// ---------- OSINT helpers ----------
+function defaultOsintSources() {
+  return [
+    { name: 'Arkham', pattern: 'https://intel.arkm.com/explorer/address/{}' },
+    { name: 'DeBank', pattern: 'https://debank.com/profile/{}' },
+  ];
+}
+
+function buildOsintUrl(pattern, addr) {
+  const norm = normalize(addr);
+  let p = pattern || '';
+  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
+  if (!p.includes('{}')) p = p.replace(/\/*$/, '/') + '{}';
+  return p.replace('{}', norm);
 }

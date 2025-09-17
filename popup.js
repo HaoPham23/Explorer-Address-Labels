@@ -1,4 +1,12 @@
 const LABELS_KEY = 'labels';
+const OSINT_KEY = 'osint_sources';
+
+function defaultOsintSources() {
+  return [
+    { name: 'Arkham', pattern: 'https://intel.arkm.com/explorer/address/{}' },
+    { name: 'DeBank', pattern: 'https://debank.com/profile/{}' },
+  ];
+}
 
 init();
 
@@ -15,6 +23,53 @@ async function init() {
   const labelInput = document.getElementById('label');
   const saveBtn = document.getElementById('save');
   const delBtn = document.getElementById('delete');
+  const osintButtonsEl = document.getElementById('osintButtons');
+  const osintListEl = document.getElementById('osintList');
+  const osintNameEl = document.getElementById('osintName');
+  const osintPatternEl = document.getElementById('osintPattern');
+  const osintAddBtn = document.getElementById('osintAddBtn');
+
+  let osintSources = await getOsintSources();
+  if (!osintSources || !osintSources.length) {
+    osintSources = defaultOsintSources();
+    await chrome.storage.local.set({ [OSINT_KEY]: osintSources });
+  }
+  renderOsintButtons(osintButtonsEl, osintSources, () => (document.getElementById('addrInput')?.value || ''));
+  renderOsintManager(osintListEl, osintSources, async (updated) => {
+    await chrome.storage.local.set({ [OSINT_KEY]: updated });
+    renderOsintButtons(osintButtonsEl, updated, () => (document.getElementById('addrInput')?.value || ''));
+  });
+
+  osintAddBtn.addEventListener('click', async () => {
+    clearMessages();
+    const name = (osintNameEl.value || '').trim();
+    let pattern = (osintPatternEl.value || '').trim();
+    if (!name) return setError('Site name is required');
+    if (!pattern) return setError('URL pattern is required');
+    if (!pattern.includes('{}')) return setError('Pattern must include {} placeholder');
+    if (!/^https?:\/\//i.test(pattern)) pattern = 'https://' + pattern;
+    const cur = await getOsintSources();
+    cur.push({ name, pattern });
+    await chrome.storage.local.set({ [OSINT_KEY]: cur });
+    osintNameEl.value = '';
+    osintPatternEl.value = '';
+    renderOsintButtons(osintButtonsEl, cur, () => (document.getElementById('addrInput')?.value || ''));
+    renderOsintManager(osintListEl, cur, async (updated) => {
+      await chrome.storage.local.set({ [OSINT_KEY]: updated });
+      renderOsintButtons(osintButtonsEl, updated, () => (document.getElementById('addrInput')?.value || ''));
+    });
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[OSINT_KEY]) {
+      const updated = changes[OSINT_KEY].newValue || [];
+      renderOsintButtons(osintButtonsEl, updated, () => (document.getElementById('addrInput')?.value || ''));
+      renderOsintManager(osintListEl, updated, async (u) => {
+        await chrome.storage.local.set({ [OSINT_KEY]: u });
+        renderOsintButtons(osintButtonsEl, u, () => (document.getElementById('addrInput')?.value || ''));
+      });
+    }
+  });
 
   if (detectedAddr) {
     detectedEl.textContent = detectedAddr;
@@ -118,12 +173,6 @@ async function init() {
       e.target.value = '';
     }
   });
-
-  /* ---------- OSINT quick-links ---------- */
-  const arkhamBtn = document.getElementById('arkhamBtn');
-  if (arkhamBtn) arkhamBtn.addEventListener('click', () => openOsint('arkham'));
-  const debankBtn = document.getElementById('debankBtn');
-  if (debankBtn) debankBtn.addEventListener('click', () => openOsint('debank'));
 }
 
 async function preloadLabelFor(addrRaw) {
@@ -269,22 +318,75 @@ async function mergeImported(items) {
   return count;
 }
 
+async function getOsintSources() {
+  const data = await chrome.storage.local.get(OSINT_KEY);
+  return data[OSINT_KEY] || [];
+}
+
+function renderOsintButtons(container, sources, getAddr) {
+  container.innerHTML = '';
+  const srcs = Array.isArray(sources) && sources.length ? sources : defaultOsintSources();
+  for (const s of srcs) {
+    const btn = document.createElement('button');
+    btn.textContent = s.name;
+    btn.addEventListener('click', () => openOsintPattern(s.pattern, getAddr()));
+    container.appendChild(btn);
+  }
+}
+
+function renderOsintManager(container, sources, onChange) {
+  container.innerHTML = '';
+  const list = document.createElement('div');
+  list.style.display = 'flex';
+  list.style.flexDirection = 'column';
+  list.style.gap = '6px';
+  (sources || []).forEach((s, idx) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    const name = document.createElement('span');
+    name.textContent = s.name;
+    const pat = document.createElement('code');
+    pat.textContent = s.pattern;
+    pat.style.whiteSpace = 'pre-wrap';
+    const del = document.createElement('button');
+    del.textContent = 'Remove';
+    del.addEventListener('click', async () => {
+      const updated = sources.slice();
+      updated.splice(idx, 1);
+      await onChange(updated);
+    });
+    row.appendChild(name);
+    row.appendChild(pat);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+function openOsintPattern(pattern, addrRaw) {
+  clearMessages();
+  const a = (addrRaw || '').trim();
+  if (!isValidAddr(a)) return setError('Enter a valid address (0x…)');
+  const norm = normalize(a);
+  let p = pattern || '';
+  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
+  if (!p.includes('{}')) p = p.replace(/\/*$/, '/') + '{}';
+  const url = p.replace('{}', norm);
+  chrome.tabs.create({ url });
+}
+
 /* ---------- external OSINT helpers ---------- */
 function openOsint(site) {
-  clearMessages();
   const addrRaw = (document.getElementById('addrInput')?.value || '').trim();
-  if (!isValidAddr(addrRaw)) {
-    setError('Enter a valid address (0x…)');
-    return;
-  }
-  const norm = normalize(addrRaw);          // lower-case 0x…
-  let url = '';
+  let pattern = '';
   if (site === 'arkham') {
-    url = `https://intel.arkm.com/explorer/address/${norm}`;
+    pattern = 'https://intel.arkm.com/explorer/address/{}';
   } else if (site === 'debank') {
-    url = `https://debank.com/profile/${norm}`;
+    pattern = 'https://debank.com/profile/{}';
   }
-  if (url) chrome.tabs.create({ url });
+  openOsintPattern(pattern, addrRaw);
 }
 
 function triggerDownload(content, filename, mime) {
