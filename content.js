@@ -489,10 +489,32 @@ function defaultOsintSources() {
   ];
 }
 
+// Convert a user-provided sample URL into a pattern that contains `{}` placeholder.
+// If `{}` already present it is returned as-is.
+function toPattern(sample) {
+  let p = (sample || '').trim();
+  if (!p) return '';
+  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
+  if (p.includes('{}')) return p;            // already a pattern
+
+  // 1) explicit address (0x… or ronin:…) in URL
+  const addrRe = /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40})/;
+  if (addrRe.test(p)) return p.replace(addrRe, '{}');
+
+  // 2) common query parameters
+  const qParamRe = /([?&](?:a|addr|address)=)[^&#]*/i;
+  if (qParamRe.test(p)) return p.replace(qParamRe, '$1{}');
+
+  // 3) path segment after /address|/token|/account
+  const pathRe = /(\/)(address|token|account)(\/)[^/?#]+/i;
+  if (pathRe.test(p)) return p.replace(pathRe, '$1$2$3{}');
+
+  // Fallback – append placeholder at the end
+  return p.replace(/\/*$/, '/') + '{}';
+}
+
 function buildOsintUrl(pattern, addr) {
   const norm = normalize(addr);
-  let p = pattern || '';
-  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
-  if (!p.includes('{}')) p = p.replace(/\/*$/, '/') + '{}';
-  return p.replace('{}', norm);
+  const pat = toPattern(pattern || '');
+  return pat ? pat.replace('{}', norm) : '';
 }

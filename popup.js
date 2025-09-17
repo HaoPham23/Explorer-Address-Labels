@@ -46,8 +46,6 @@ async function init() {
     let pattern = (osintPatternEl.value || '').trim();
     if (!name) return setError('Site name is required');
     if (!pattern) return setError('URL pattern is required');
-    if (!pattern.includes('{}')) return setError('Pattern must include {} placeholder');
-    if (!/^https?:\/\//i.test(pattern)) pattern = 'https://' + pattern;
     const cur = await getOsintSources();
     cur.push({ name, pattern });
     await chrome.storage.local.set({ [OSINT_KEY]: cur });
@@ -370,10 +368,9 @@ function openOsintPattern(pattern, addrRaw) {
   const a = (addrRaw || '').trim();
   if (!isValidAddr(a)) return setError('Enter a valid address (0x…)');
   const norm = normalize(a);
-  let p = pattern || '';
-  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
-  if (!p.includes('{}')) p = p.replace(/\/*$/, '/') + '{}';
-  const url = p.replace('{}', norm);
+  const pat = toPattern(pattern || '');
+  if (!pat) return setError('Invalid OSINT pattern');
+  const url = pat.replace('{}', norm);
   chrome.tabs.create({ url });
 }
 
@@ -387,6 +384,29 @@ function openOsint(site) {
     pattern = 'https://debank.com/profile/{}';
   }
   openOsintPattern(pattern, addrRaw);
+}
+
+/* ---------- pattern helper ---------- */
+function toPattern(sample) {
+  let p = (sample || '').trim();
+  if (!p) return '';
+  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
+  if (p.includes('{}')) return p; // already a pattern
+
+  // Replace explicit address occurrences first
+  const addrRe = /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40})/;
+  if (addrRe.test(p)) return p.replace(addrRe, '{}');
+
+  // Replace value of common query params
+  const qParamRe = /([?&](?:a|addr|address)=)[^&#]*/i;
+  if (qParamRe.test(p)) return p.replace(qParamRe, '$1{}');
+
+  // Replace path segment after /address|/token|/account
+  const pathRe = /(\/)(address|token|account)(\/)[^/?#]+/i;
+  if (pathRe.test(p)) return p.replace(pathRe, '$1$2$3{}');
+
+  // Fallback: append placeholder at end
+  return p.replace(/\/*$/, '/') + '{}';
 }
 
 function triggerDownload(content, filename, mime) {
