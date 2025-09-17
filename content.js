@@ -76,7 +76,7 @@ function replaceTextNodes() {
       if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
       if (n.parentElement.closest('a')) return NodeFilter.FILTER_REJECT; // anchors handled separately
       if (n.parentElement.closest('.explabel-wrap-short')) return NodeFilter.FILTER_REJECT;
-      return /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{4,20}(?:…|\.{3})[0-9a-fA-F]{4,20})/.test(n.nodeValue)
+      return /(0x[0-9a-fA-F]{40}|0x[0-9a-fA-F]{4,20}(?:…|\.{3})[0-9a-fA-F]{4,20})/.test(n.nodeValue)
         ? NodeFilter.FILTER_ACCEPT
         : NodeFilter.FILTER_REJECT;
     }
@@ -95,7 +95,7 @@ function replaceMatchesInTextNode(textNode) {
 
 function replaceFullAddresses(textNode) {
   const text = textNode.nodeValue;
-  const re = /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40})/g;
+  const re = /(0x[0-9a-fA-F]{40})/g;
   let m, last = 0, changed = false;
   const frag = document.createDocumentFragment();
   while ((m = re.exec(text)) !== null) {
@@ -217,10 +217,10 @@ function updateExistingShortWrappers() {
 function extractAddressFromUrl(url) {
   if (!url) return '';
   // Path forms like /address/<addr> or /token/<addr>
-  let m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  let m = url.match(/\/(address|token|account)\/(0x[0-9a-fA-F]{40})/);
   if (m) return m[2];
   // Query-param forms ?a=<addr>, ?address=<addr>, ?addr=<addr>
-  m = url.match(/[?&#](a|address|addr)=?(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  m = url.match(/[?&#](a|address|addr)=?(0x[0-9a-fA-F]{40})/);
   return m ? m[2] : '';
 }
 
