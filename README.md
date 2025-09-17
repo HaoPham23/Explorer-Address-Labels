@@ -23,7 +23,6 @@ A minimal Chrome extension to add labels to addresses you visit on the Ronin exp
 ## Data Model & Storage
 - Stored under key `labels` in `chrome.storage.local`  
 - Shape: `{ "<normalizedAddress>": { "label": string, "updatedAt": number } }`  
-- Normalization: `ronin:xxxxxxxx…` → `0xxxxxxxxx…` (lower-cased)  
 - Data lives only in the current browser profile; removing the extension deletes it.
 
 ## File Structure

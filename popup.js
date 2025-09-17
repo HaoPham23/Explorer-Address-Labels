@@ -118,6 +118,12 @@ async function init() {
       e.target.value = '';
     }
   });
+
+  /* ---------- OSINT quick-links ---------- */
+  const arkhamBtn = document.getElementById('arkhamBtn');
+  if (arkhamBtn) arkhamBtn.addEventListener('click', () => openOsint('arkham'));
+  const debankBtn = document.getElementById('debankBtn');
+  if (debankBtn) debankBtn.addEventListener('click', () => openOsint('debank'));
 }
 
 async function preloadLabelFor(addrRaw) {
@@ -131,17 +137,17 @@ async function preloadLabelFor(addrRaw) {
 function extractAddressFromUrl(url) {
   if (!url) return '';
   // Common path forms across explorers
-  let m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  let m = url.match(/\/(address|token|account)\/(0x[0-9a-fA-F]{40})/);
   if (m) return m[2];
   // Query params used by many scanners (a, address, addr)
-  m = url.match(/[?&#](a|address|addr)=?(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  m = url.match(/[?&#](a|address|addr)=?(0x[0-9a-fA-F]{40})/);
   if (m) return m[2];
   return '';
 }
 
 function isValidAddr(a) {
   if (!a) return false;
-  return /^0x[0-9a-fA-F]{40}$/.test(a) || /^ronin:[0-9a-fA-F]{40}$/i.test(a);
+  return /^0x[0-9a-fA-F]{40}$/.test(a);
 }
 
 function normalize(a) {
@@ -261,6 +267,24 @@ async function mergeImported(items) {
   }
   await chrome.storage.local.set({ [LABELS_KEY]: existing });
   return count;
+}
+
+/* ---------- external OSINT helpers ---------- */
+function openOsint(site) {
+  clearMessages();
+  const addrRaw = (document.getElementById('addrInput')?.value || '').trim();
+  if (!isValidAddr(addrRaw)) {
+    setError('Enter a valid address (0x…)');
+    return;
+  }
+  const norm = normalize(addrRaw);          // lower-case 0x…
+  let url = '';
+  if (site === 'arkham') {
+    url = `https://intel.arkm.com/explorer/address/${norm}`;
+  } else if (site === 'debank') {
+    url = `https://debank.com/profile/${norm}`;
+  }
+  if (url) chrome.tabs.create({ url });
 }
 
 function triggerDownload(content, filename, mime) {
