@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ronin Labels</title>
+  <style>
+    body { min-width: 320px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; padding: 12px; }
+    .row { margin: 8px 0; }
+    input[type="text"], input[type="url"] { width: 100%; box-sizing: border-box; padding: 6px 8px; }
+    .muted { color: #555; font-size: 12px; }
+    .actions { display: flex; gap: 8px; }
+    #msg { margin-top: 6px; color: #2e7d32; }
+    #error { margin-top: 6px; color: #c62828; }
+    #detectedRow { margin-bottom: 4px; }
+    #detected { font-weight: 600; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div id="detectedRow" class="muted">Detected: <span id="detected">—</span></div>
+
+  <div class="row">
+    <label class="muted"><input id="manualToggle" type="checkbox"> Enter address manually</label>
+  </div>
+  <div class="row">
+    <input id="addrInput" type="text" placeholder="0x... or ronin:..." />
+  </div>
+
+  <div class="row">
+    <input id="label" type="text" placeholder="Enter label" />
+  </div>
+  <div class="actions">
+    <button id="save">Save</button>
+    <button id="delete" title="Remove existing label">Delete</button>
+  </div>
+  <div id="msg"></div>
+  <div id="error"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
