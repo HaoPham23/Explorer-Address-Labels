@@ -13,6 +13,11 @@
     #error { margin-top: 6px; color: #c62828; }
     #detectedRow { margin-bottom: 4px; }
     #detected { font-weight: 600; word-break: break-all; }
+    /* --- palette styles --- */
+    .palette { display:flex; gap:6px; flex-wrap:wrap; }
+    .swatch { width:22px; height:22px; border-radius:6px; border:1px solid #ddd; cursor:pointer; box-sizing:border-box; }
+    .swatch.selected { outline:2px solid #111; }
+    .swatch.none { background: repeating-conic-gradient(#eee 0 25%, transparent 0 50%) 50% / 8px 8px; border:1px dashed #bbb; }
   </style>
 </head>
 <body>
@@ -27,6 +32,10 @@
 
   <div class="row">
     <input id="label" type="text" placeholder="Enter label" />
+  </div>
+  <div class="row">
+    <div class="muted" style="margin-bottom:4px;">Color</div>
+    <div id="colorPalette" class="palette"></div>
   </div>
   <div class="actions">
     <button id="save">Save</button>
