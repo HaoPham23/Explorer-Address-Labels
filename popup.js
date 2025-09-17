@@ -47,7 +47,7 @@ async function init() {
   saveBtn.addEventListener('click', async () => {
     clearMessages();
     const addrRaw = addrInput.value.trim();
-    if (!isValidAddr(addrRaw)) return setError('Enter a valid address (0x… or ronin:…)');
+    if (!isValidAddr(addrRaw)) return setError('Enter a valid address (0x…)');
     const norm = normalize(addrRaw);
     const label = labelInput.value.trim();
     if (!label) return setError('Label is required');
@@ -61,7 +61,7 @@ async function init() {
   delBtn.addEventListener('click', async () => {
     clearMessages();
     const addrRaw = addrInput.value.trim();
-    if (!isValidAddr(addrRaw)) return setError('Enter a valid address (0x… or ronin:…)');
+    if (!isValidAddr(addrRaw)) return setError('Enter a valid address (0x…)');
     const norm = normalize(addrRaw);
     const { [LABELS_KEY]: labels = {} } = await chrome.storage.local.get(LABELS_KEY);
     if (labels[norm]) {
