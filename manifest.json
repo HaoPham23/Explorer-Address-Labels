@@ -4,13 +4,25 @@
   "version": "0.1.0",
   "description": "Label addresses on app.roninchain.com via popup with local storage.",
   "action": { "default_popup": "popup.html" },
-  "permissions": ["storage", "activeTab", "tabs"],
+  "permissions": ["storage", "activeTab", "tabs", "scripting"],
   "host_permissions": [
-    "*://app.roninchain.com/*"
+    "*://app.roninchain.com/*",
+    "*://etherscan.io/*", "*://*.etherscan.io/*",
+    "*://bscscan.com/*", "*://*.bscscan.com/*",
+    "*://arbiscan.io/*", "*://*.arbiscan.io/*",
+    "*://polygonscan.com/*", "*://*.polygonscan.com/*",
+    "*://basescan.org/*", "*://*.basescan.org/*"
   ],
   "content_scripts": [
     {
-      "matches": ["*://app.roninchain.com/*"],
+      "matches": [
+        "*://app.roninchain.com/*",
+        "*://etherscan.io/*", "*://*.etherscan.io/*",
+        "*://bscscan.com/*", "*://*.bscscan.com/*",
+        "*://arbiscan.io/*", "*://*.arbiscan.io/*",
+        "*://polygonscan.com/*", "*://*.polygonscan.com/*",
+        "*://basescan.org/*", "*://*.basescan.org/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
