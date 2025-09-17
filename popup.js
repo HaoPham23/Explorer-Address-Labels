@@ -1,6 +1,4 @@
 const LABELS_KEY = 'labels';
-const PALETTE = ['#1f6feb','#7c3aed','#0ea5e9','#16a34a','#f59e0b','#ef4444','#f43f5e','#6b7280'];
-let selectedColor = '';
 
 init();
 
@@ -30,9 +28,6 @@ async function init() {
     addrInput.disabled = false;
   }
 
-  // Build color palette
-  buildPalette(document.getElementById('colorPalette'));
-
   // Preload label for the current value
   await preloadLabelFor(addrInput.value);
 
@@ -57,7 +52,7 @@ async function init() {
     const label = labelInput.value.trim();
     if (!label) return setError('Label is required');
     const { [LABELS_KEY]: labels = {} } = await chrome.storage.local.get(LABELS_KEY);
-    labels[norm] = { label, updatedAt: Date.now(), ...(selectedColor ? { color: selectedColor } : {}) };
+    labels[norm] = { label, updatedAt: Date.now() };
     await chrome.storage.local.set({ [LABELS_KEY]: labels });
     setMsg('Saved ✔');
     await notifyPage();
@@ -73,7 +68,6 @@ async function init() {
       delete labels[norm];
       await chrome.storage.local.set({ [LABELS_KEY]: labels });
       labelInput.value = '';
-      setSelectedColor('');
       setMsg('Deleted');
       await notifyPage();
     } else {
@@ -132,7 +126,6 @@ async function preloadLabelFor(addrRaw) {
   const existing = (data && data[LABELS_KEY]) || {};
   const labelInput = document.getElementById('label');
   labelInput.value = existing[norm]?.label || '';
-  setSelectedColor(existing[norm]?.color || '');
 }
 
 function extractAddressFromUrl(url) {
@@ -184,94 +177,28 @@ async function notifyPage() {
 
 /* ---------- helper functions ---------- */
 
-function buildPalette(container) {
-  // Clear container
-  container.innerHTML = '';
-  
-  // Add "No color" option
-  const noneEl = document.createElement('div');
-  noneEl.className = 'swatch none';
-  noneEl.title = 'No color';
-  noneEl.dataset.color = '';
-  noneEl.addEventListener('click', () => setSelectedColor(''));
-  container.appendChild(noneEl);
-  
-  // Add color swatches
-  PALETTE.forEach(color => {
-    const swatch = document.createElement('div');
-    swatch.className = 'swatch';
-    swatch.style.backgroundColor = color;
-    swatch.title = color;
-    swatch.dataset.color = color;
-    swatch.addEventListener('click', () => setSelectedColor(color));
-    container.appendChild(swatch);
-  });
-}
-
-function setSelectedColor(color) {
-  selectedColor = color || '';
-  
-  // Update UI to reflect selection
-  document.querySelectorAll('#colorPalette .swatch').forEach(el => {
-    if ((el.dataset.color || '') === selectedColor) {
-      el.classList.add('selected');
-    } else {
-      el.classList.remove('selected');
-    }
-  });
-}
-
 function labelsToCsv(labels) {
-  const rows = ['address,label,color'];
+  const rows = ['address,label'];
   for (const [addr, obj] of Object.entries(labels)) {
     const label = (obj && obj.label) ? obj.label : '';
-    const color = (obj && obj.color) ? obj.color : '';
-    
-    const safeLabel = label.includes(',') || label.includes('"')
+    const safe = label.includes(',') || label.includes('"')
       ? '"' + label.replace(/"/g, '""') + '"'
       : label;
-    
-    const safeColor = color.includes(',') || color.includes('"')
-      ? '"' + color.replace(/"/g, '""') + '"'
-      : color;
-    
-    rows.push(`${addr},${safeLabel},${safeColor}`);
+    rows.push(`${addr},${safe}`);
   }
   return rows.join('\n');
 }
 
 function labelsToJson(labels) {
-  const arr = Object.entries(labels).map(([address, v]) => ({
-    address,
-    label: v.label || '',
-    ...(v.color ? { color: v.color } : {})
-  }));
+  const arr = Object.entries(labels).map(([address, v]) => ({ address, label: v.label || '' }));
   return JSON.stringify(arr, null, 2);
 }
 
 function parseJson(text) {
   const data = JSON.parse(text);
-  if (Array.isArray(data)) {
-    return data.map(x => ({
-      address: x.address,
-      label: x.label,
-      ...(x.color ? { color: x.color } : {})
-    }));
-  }
-  if (data && typeof data === 'object') {
-    return Object.entries(data).map(([address, value]) => {
-      if (typeof value === 'string') {
-        return { address, label: value };
-      } else if (typeof value === 'object') {
-        return {
-          address,
-          label: value.label || '',
-          ...(value.color ? { color: value.color } : {})
-        };
-      }
-      return { address, label: String(value) };
-    });
-  }
+  if (Array.isArray(data)) return data.map(x => ({ address: x.address, label: x.label }));
+  if (data && typeof data === 'object')
+    return Object.entries(data).map(([address, label]) => ({ address, label }));
   return [];
 }
 
@@ -281,18 +208,12 @@ function parseCsv(text) {
   const header = lines[0].split(',').map(s => s.trim().toLowerCase());
   const ai = header.indexOf('address');
   const li = header.indexOf('label');
-  const ci = header.indexOf('color');
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i]);
     const address = (cols[ai] || '').trim();
     const label = (cols[li] || '').trim();
-    const color = ci >= 0 ? (cols[ci] || '').trim() : '';
-    if (address && label) {
-      const item = { address, label };
-      if (color) item.color = color;
-      rows.push(item);
-    }
+    if (address && label) rows.push({ address, label });
   }
   return rows;
 }
@@ -335,11 +256,7 @@ async function mergeImported(items) {
     const norm = normalize(it.address);
     const label = (it.label || '').trim();
     if (!norm || !label) continue;
-    existing[norm] = {
-      label,
-      updatedAt: now,
-      ...(it.color ? { color: it.color } : {})
-    };
+    existing[norm] = { label, updatedAt: now };
     count++;
   }
   await chrome.storage.local.set({ [LABELS_KEY]: existing });
