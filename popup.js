@@ -74,6 +74,50 @@ async function init() {
       setError('No label to delete');
     }
   });
+
+  /* ---------- import / export ---------- */
+  const formatSel = document.getElementById('format');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput');
+
+  exportBtn.addEventListener('click', async () => {
+    clearMessages();
+    const fmt = formatSel.value;
+    const { [LABELS_KEY]: labels = {} } = await chrome.storage.local.get(LABELS_KEY);
+    try {
+      if (fmt === 'csv') {
+        const csv = labelsToCsv(labels);
+        triggerDownload(csv, `ronin-labels-${ts()}.csv`, 'text/csv');
+      } else {
+        const json = labelsToJson(labels);
+        triggerDownload(json, `ronin-labels-${ts()}.json`, 'application/json');
+      }
+      setMsg('Exported');
+    } catch (e) {
+      setError('Export failed');
+    }
+  });
+
+  importBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async (e) => {
+    clearMessages();
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const imported = ext === 'csv' ? parseCsv(text) : parseJson(text);
+      const count = await mergeImported(imported);
+      setMsg(`Imported ${count} label(s)`);
+      await notifyPage();
+    } catch {
+      setError('Import failed: invalid file');
+    } finally {
+      e.target.value = '';
+    }
+  });
 }
 
 async function preloadLabelFor(addrRaw) {
@@ -86,12 +130,12 @@ async function preloadLabelFor(addrRaw) {
 
 function extractAddressFromUrl(url) {
   if (!url) return '';
-  // Match /address|token|account/<addr> where <addr> is 0x... or ronin:...
-  const m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  // Common path forms across explorers
+  let m = url.match(/\/(address|token|account)\/(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
   if (m) return m[2];
-  // Fallback: query params like ?address=<addr>
-  const qm = url.match(/[?&#](address|addr)=?(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
-  if (qm) return qm[2];
+  // Query params used by many scanners (a, address, addr)
+  m = url.match(/[?&#](a|address|addr)=?(ronin:[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})/);
+  if (m) return m[2];
   return '';
 }
 
@@ -114,7 +158,125 @@ function clearMessages() { setMsg(''); setError(''); }
 
 async function notifyPage() {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (active?.id) {
-    try { await chrome.tabs.sendMessage(active.id, { type: 'labelsUpdated' }); } catch (_) {}
+  if (!active?.id) return;
+  try {
+    await chrome.tabs.sendMessage(active.id, { type: 'labelsUpdated' });
+  } catch (_) {
+    // Content script might not be injected on this site yet; inject and retry.
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: active.id },
+        files: ['content.js']
+      });
+      await chrome.tabs.sendMessage(active.id, { type: 'labelsUpdated' });
+    } catch (e) {
+      // Silent fail – user may have restricted site access.
+    }
   }
+}
+
+/* ---------- helper functions ---------- */
+
+function labelsToCsv(labels) {
+  const rows = ['address,label'];
+  for (const [addr, obj] of Object.entries(labels)) {
+    const label = (obj && obj.label) ? obj.label : '';
+    const safe = label.includes(',') || label.includes('"')
+      ? '"' + label.replace(/"/g, '""') + '"'
+      : label;
+    rows.push(`${addr},${safe}`);
+  }
+  return rows.join('\n');
+}
+
+function labelsToJson(labels) {
+  const arr = Object.entries(labels).map(([address, v]) => ({ address, label: v.label || '' }));
+  return JSON.stringify(arr, null, 2);
+}
+
+function parseJson(text) {
+  const data = JSON.parse(text);
+  if (Array.isArray(data)) return data.map(x => ({ address: x.address, label: x.label }));
+  if (data && typeof data === 'object')
+    return Object.entries(data).map(([address, label]) => ({ address, label }));
+  return [];
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+  const ai = header.indexOf('address');
+  const li = header.indexOf('label');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i]);
+    const address = (cols[ai] || '').trim();
+    const label = (cols[li] || '').trim();
+    if (address && label) rows.push({ address, label });
+  }
+  return rows;
+}
+
+function splitCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') {
+        inQ = false;
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === ',') {
+        out.push(cur);
+        cur = '';
+      } else if (ch === '"') {
+        inQ = true;
+      } else {
+        cur += ch;
+      }
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+async function mergeImported(items) {
+  const now = Date.now();
+  const { [LABELS_KEY]: existing = {} } = await chrome.storage.local.get(LABELS_KEY);
+  let count = 0;
+  for (const it of items) {
+    const norm = normalize(it.address);
+    const label = (it.label || '').trim();
+    if (!norm || !label) continue;
+    existing[norm] = { label, updatedAt: now };
+    count++;
+  }
+  await chrome.storage.local.set({ [LABELS_KEY]: existing });
+  return count;
+}
+
+function triggerDownload(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function ts() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }

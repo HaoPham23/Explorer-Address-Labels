@@ -34,6 +34,21 @@
   </div>
   <div id="msg"></div>
   <div id="error"></div>
+
+  <hr style="margin:12px 0; border:none; border-top:1px solid #eee;">
+  <div class="row muted">Import/Export</div>
+  <div class="row" style="display:flex; gap:8px; align-items:center;">
+    <label class="muted">Format
+      <select id="format" style="margin-left:6px;">
+        <option value="json" selected>JSON</option>
+        <option value="csv">CSV</option>
+      </select>
+    </label>
+    <button id="exportBtn" style="margin-left:auto;">Export</button>
+    <button id="importBtn">Import</button>
+    <input id="fileInput" type="file" accept=".json,.csv,text/csv,application/json" style="display:none;" />
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
