@@ -213,7 +213,8 @@ function replaceFullAddresses(textNode) {
   if (!textNode || !textNode.isConnected || !textNode.parentNode) return false;
   
   const text = textNode.nodeValue;
-  const re = /(0x[0-9a-fA-F]{40})/g;
+  // match standalone 40-hex addresses only; ignore if another hex char follows
+  const re = /(0x[0-9a-fA-F]{40})(?![0-9a-fA-F])/g;
   let m, last = 0, changed = false;
   const frag = document.createDocumentFragment();
   while ((m = re.exec(text)) !== null) {
