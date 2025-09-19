@@ -210,6 +210,8 @@ function replaceMatchesInTextNode(textNode) {
 }
 
 function replaceFullAddresses(textNode) {
+  if (!textNode || !textNode.isConnected || !textNode.parentNode) return false;
+  
   const text = textNode.nodeValue;
   const re = /(0x[0-9a-fA-F]{40})/g;
   let m, last = 0, changed = false;
@@ -249,11 +251,19 @@ function replaceFullAddresses(textNode) {
   }
   if (!changed) return false;
   if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-  textNode.parentNode.replaceChild(frag, textNode);
+  
+  if (!textNode.isConnected || !textNode.parentNode) return false;
+  try {
+    textNode.parentNode.replaceChild(frag, textNode);
+  } catch (_) {
+    return false;
+  }
   return true;
 }
 
 function replaceShortAddresses(textNode) {
+  if (!textNode || !textNode.isConnected || !textNode.parentNode) return false;
+  
   const text = textNode.nodeValue;
   const reShort = /(0x[0-9a-fA-F]{4,20})(?:…|\.{3})([0-9a-fA-F]{4,20})/g;
   let m, last = 0, changed = false;
@@ -291,7 +301,13 @@ function replaceShortAddresses(textNode) {
   }
   if (!changed) return false;
   if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-  textNode.parentNode.replaceChild(frag, textNode);
+  
+  if (!textNode.isConnected || !textNode.parentNode) return false;
+  try {
+    textNode.parentNode.replaceChild(frag, textNode);
+  } catch (_) {
+    return false;
+  }
   return true;
 }
 
@@ -352,7 +368,7 @@ function updateExistingShortWrappers() {
       // remove wrapper entirely and restore original shortened text
       const orig = wrap.dataset.original || wrap.textContent;
       const n = document.createTextNode(orig);
-      wrap.replaceWith(n);
+      if (wrap && wrap.isConnected) wrap.replaceWith(n);
     }
   });
 }
