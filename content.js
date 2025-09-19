@@ -457,8 +457,18 @@ function openMenuAt(anchorEl, addr) {
 }
 
 function closeMenu() {
-  if (explabelMenu && explabelMenu.parentNode) explabelMenu.parentNode.removeChild(explabelMenu);
+  try {
+    // remove only if still in DOM to avoid NotFoundError
+    if (explabelMenu && explabelMenu.isConnected) {
+      explabelMenu.remove();
+    }
+  } catch (_) {
+    /* ignore race */
+  }
   if (explabelOutside) document.removeEventListener('mousedown', explabelOutside, true);
   if (explabelKeyHandler) document.removeEventListener('keydown', explabelKeyHandler, true);
-  explabelMenu = null; explabelMenuAddr = null; explabelOutside = null; explabelKeyHandler = null;
+  explabelMenu = null;
+  explabelMenuAddr = null;
+  explabelOutside = null;
+  explabelKeyHandler = null;
 }
