@@ -370,41 +370,6 @@ function openOsintPattern(pattern, addrRaw) {
   chrome.tabs.create({ url });
 }
 
-/* ---------- external OSINT helpers ---------- */
-function openOsint(site) {
-  const addrRaw = (document.getElementById('addrInput')?.value || '').trim();
-  let pattern = '';
-  if (site === 'arkham') {
-    pattern = 'https://intel.arkm.com/explorer/address/{}';
-  } else if (site === 'debank') {
-    pattern = 'https://debank.com/profile/{}';
-  }
-  openOsintPattern(pattern, addrRaw);
-}
-
-/* ---------- pattern helper ---------- */
-function toPattern(sample) {
-  let p = (sample || '').trim();
-  if (!p) return '';
-  if (!/^https?:\/\//i.test(p)) p = 'https://' + p;
-  if (p.includes('{}')) return p; // already a pattern
-
-  // Replace explicit address occurrences first
-  const addrRe = /(0x[0-9a-fA-F]{40}|ronin:[0-9a-fA-F]{40})/;
-  if (addrRe.test(p)) return p.replace(addrRe, '{}');
-
-  // Replace value of common query params
-  const qParamRe = /([?&](?:a|addr|address)=)[^&#]*/i;
-  if (qParamRe.test(p)) return p.replace(qParamRe, '$1{}');
-
-  // Replace path segment after /address|/token|/account
-  const pathRe = /(\/)(address|token|account)(\/)[^/?#]+/i;
-  if (pathRe.test(p)) return p.replace(pathRe, '$1$2$3{}');
-
-  // Fallback: append placeholder at end
-  return p.replace(/\/*$/, '/') + '{}';
-}
-
 function triggerDownload(content, filename, mime) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);

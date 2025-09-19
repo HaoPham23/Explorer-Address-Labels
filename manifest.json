@@ -23,7 +23,7 @@
         "*://polygonscan.com/*", "*://*.polygonscan.com/*",
         "*://basescan.org/*", "*://*.basescan.org/*"
       ],
-      "js": ["content.js"],
+      "js": ["utils.js", "content.js"],
       "run_at": "document_idle"
     }
   ]
