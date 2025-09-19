@@ -5,6 +5,7 @@ let labels = {};
 // Debounce timer for expensive annotate work
 let scheduleTimer = null;
 let explabelMenu = null; let explabelMenuAddr = null; let explabelOutside = null; let explabelKeyHandler = null;
+let explabelTip = null; let explabelShiftDown = false;
 
 // Re-injection guard: if the script is injected again (e.g. via chrome.scripting)
 // avoid double observers / listeners.
@@ -41,6 +42,9 @@ async function init() {
       loadLabels().then(scheduleAnnotate);
     }
   });
+  document.addEventListener('mousemove', onTipHover, true);
+  document.addEventListener('keydown', (e)=>{ if (e.key==='Shift') explabelShiftDown = true; }, true);
+  document.addEventListener('keyup', (e)=>{ if (e.key==='Shift') { explabelShiftDown=false; hideTip(); } }, true);
 }
 
 function injectStyle() {
@@ -97,6 +101,8 @@ function injectStyle() {
     .explabel-menu button:hover{
       background:#f2f2f2;
     }
+    .explabel-note { display:inline-block; margin-left:4px; font-size:12px; cursor:default; }
+    .explabel-tooltip { position: fixed; z-index:2147483647; background:#111; color:#fff; padding:4px 6px; border-radius:4px; font-size:12px; max-width:280px; box-shadow:0 2px 8px rgba(0,0,0,0.25); }
   `;
   const style = document.createElement('style');
   style.id = 'explabel-style';
@@ -160,9 +166,11 @@ function replaceAnchorTexts() {
       delete a.dataset.explabelOrig;
       delete a.dataset.addr;
       a.removeAttribute('title');
+      const next=a.nextElementSibling; if (next && next.classList.contains('explabel-note')) next.remove();
     }
     // Always ensure an edit button exists after the anchor
-    ensureEditAfter(a, key);
+    const editBtn = ensureEditAfter(a, key);
+    ensureNoteAfter(editBtn, key);
   });
 }
 
@@ -245,6 +253,7 @@ function replaceFullAddresses(textNode) {
     
     // Add edit button
     wrap.appendChild(createEditButton(key));
+    const editBtn = wrap.querySelector('.explabel-edit'); if (editBtn) ensureNoteAfter(editBtn, key);
     
     frag.appendChild(wrap);
     last = re.lastIndex;
@@ -295,6 +304,7 @@ function replaceShortAddresses(textNode) {
     
     // Add edit button
     wrap.appendChild(createEditButton(full));
+    const editBtn = wrap.querySelector('.explabel-edit'); if (editBtn) ensureNoteAfter(editBtn, full);
 
     frag.appendChild(wrap);
     last = reShort.lastIndex;
@@ -365,6 +375,7 @@ function updateExistingShortWrappers() {
         editBtn = createEditButton(key);
         wrap.appendChild(editBtn);
       }
+      ensureNoteAfter(editBtn, key);
     } else {
       // remove wrapper entirely and restore original shortened text
       const orig = wrap.dataset.original || wrap.textContent;
@@ -405,6 +416,7 @@ function updateExistingFullWrappers() {
     } else if (editBtn.dataset.addr !== key) {
       editBtn.dataset.addr = key;
     }
+    ensureNoteAfter(editBtn, key);
   });
 }
 
@@ -417,6 +429,12 @@ function createEditButton(addr) {
   b.addEventListener('click', onEditClick);
   return b;
 }
+
+function getNote(addr){ const n = labels[addr]?.note; return (typeof n === 'string') ? n.trim() : ''; }
+
+function createNoteIcon(addr){ const s=document.createElement('span'); s.className='explabel-note'; s.dataset.addr=addr; s.textContent='📝'; s.title='Note'; return s; }
+
+function ensureNoteAfter(refEl, addr){ const has = !!getNote(addr); const next = refEl && refEl.nextElementSibling; const isNote = next && next.classList && next.classList.contains('explabel-note') && next.dataset.addr===addr; if (has){ if (!isNote){ const icon=createNoteIcon(addr); refEl.insertAdjacentElement('afterend', icon);} } else { if (isNote){ next.remove(); } } }
 
 async function onEditClick(e) {
   e.stopPropagation();
@@ -489,3 +507,9 @@ function closeMenu() {
   explabelOutside = null;
   explabelKeyHandler = null;
 }
+
+function onTipHover(e){ const t = e.target.closest('.explabel-edit, .explabel-label, .explabel-note'); if (!t){ hideTip(); return; } if (!(e.shiftKey || explabelShiftDown)){ hideTip(); return; } const holder = t.closest('[data-addr]'); const addr = holder?.dataset?.addr; if (!addr){ hideTip(); return; } const note = getNote(addr); if (!note){ hideTip(); return; } const first = note.split(/\r?\n/)[0] || ''; const text = first.length>120 ? first.slice(0,120)+'…' : first; showTipNear(t, text); }
+
+function showTipNear(anchorEl, text){ if (!explabelTip){ const d=document.createElement('div'); d.className='explabel-tooltip'; explabelTip=d; document.body.appendChild(d); } explabelTip.textContent=text; const r=anchorEl.getBoundingClientRect(); explabelTip.style.top=(r.bottom+8)+'px'; const rect=explabelTip.getBoundingClientRect(); let left=r.left; const maxLeft=window.innerWidth-rect.width-8; if (left>maxLeft) left=maxLeft; if (left<8) left=8; explabelTip.style.left=left+'px'; }
+
+function hideTip(){ if (explabelTip && explabelTip.isConnected){ explabelTip.remove(); } explabelTip=null; }
