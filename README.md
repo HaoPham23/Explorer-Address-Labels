@@ -1,47 +1,81 @@
-# Ronin Explorer Address Labels (Popup)
+# Address Labels for Block Explorers (Chrome Extension)
 
-A minimal Chrome extension to add labels to addresses you visit on the Ronin explorer (`app.roninchain.com`). It provides a popup UI and stores labels locally in your browser profile—no Google Sheets, CSV import, or inline content script.
+Label blockchain addresses directly on popular explorers (Etherscan, BscScan, Arbiscan, PolygonScan, BaseScan, Ronin). Labels are shown inline on the page with a small ✎ edit button and optional OSINT quick links. All data stays local in your browser profile.
 
-## Features
-- Popup-only label editor for the current page’s address  
-- Recognizes both `0x…` and `ronin:…` formats (normalized to lowercase `0x…`)  
-- Local-only storage via `chrome.storage.local` (per profile, not cloud-synced)
+## Key Features
+- Inline labeling on explorer pages
+  - Replaces/augments addresses with your saved label
+  - ✎ edit button next to each detected address
+  - Minimal inline menu: “Edit label…” and OSINT quick links
+- Popup for quick actions
+  - Detects current tab’s address automatically
+  - Save/Delete label for the current address
+  - Import/Export labels (JSON or CSV)
+- OSINT sources (configurable)
+  - Defaults: Arkham, DeBank
+  - Add your own by pasting a sample URL; the extension auto-detects where to insert `{}`
+  - Quick-open OSINT from popup or inline menu
+- Notes (display-only, non-intrusive)
+  - 📝 icon appears when a note exists for the address
+  - Hold Shift and hover the label/✎/📝 to see the note’s first line (tooltip)
+- Local-only storage via `chrome.storage.local`
 
-## Install / Load Unpacked
-1. Open Chrome → `chrome://extensions`  
-2. Enable “Developer mode”  
-3. Click “Load unpacked” and select this folder  
-4. Browse to an address page on Ronin explorer (e.g. `https://app.roninchain.com/address/0x5Fa076fADFcEdA601D092CACc30D2cEd936f3036`)  
-5. Click the extension icon to open the popup
+## Install (Load Unpacked)
+1. Open Chrome → `chrome://extensions`
+2. Enable “Developer mode” (top-right)
+3. Click “Load unpacked” and select this project folder
+4. Visit an address page on any supported explorer (e.g. `https://etherscan.io/address/0x…`)
+5. Labels appear inline; click ✎ to edit, or use the popup for quick actions
 
 ## Usage
-1. On an address page, open the popup.  
-2. Enter a label and press **Save**.  
-3. Re-open the popup on the same address to view or update the label.  
-4. Press **Delete** to remove the stored label.
+Inline on page
+- Hover addresses; you’ll see your labels where available
+- Click ✎ → Inline menu → “Edit label…” (prompt) or open in OSINT
+- Notes tooltip: hold Shift and hover label/✎/📝 (first line shown, truncated)
 
-## Data Model & Storage
-- Stored under key `labels` in `chrome.storage.local`  
-- Shape: `{ "<normalizedAddress>": { "label": string, "updatedAt": number } }`  
-- Data lives only in the current browser profile; removing the extension deletes it.
+Popup
+- Shows detected address from the active tab (or toggle manual input)
+- Save/Delete label
+- OSINT quick link buttons (use current address)
+- Import/Export: choose JSON or CSV
+- OSINT Sources Manager: add/remove sites by name and sample URL
 
-## File Structure
-- `manifest.json` – MV3 manifest (popup only, Ronin host permission)  
-- `popup.html` – Popup UI  
-- `popup.js` – Detects address from URL, save/delete logic
+## OSINT Sources
+- Default list: Arkham, DeBank
+- Add custom sources by pasting any sample URL (with an address). The extension converts it to a pattern with `{}` placeholder automatically. Examples:
+  - `https://intel.arkm.com/explorer/address/0xabc…` → `https://intel.arkm.com/explorer/address/{}`
+  - `https://debank.com/profile/0xabc…` → `https://debank.com/profile/{}`
+  - `…?address=0xabc…` → `…?address={}`
 
-## Permissions
-- `storage`, `activeTab`, `tabs`  
-- Host permissions: `*://app.roninchain.com/*`
+## Data Model (Storage)
+- `labels` (in `chrome.storage.local`)
+  - Shape: `{ "<address>": { "label": string, "updatedAt": number, "note"?: string } }`
+  - Address is normalized lowercase `0x…`
+- `osint_sources` (in `chrome.storage.local`)
+  - Shape: `Array<{ name: string, pattern: string }>` where `pattern` contains `{}` placeholder
 
-## Customization
-- Support more explorers: add domains to `host_permissions` and update `extractAddressFromUrl` in `popup.js`.  
-- Adjust address detection logic or UI as needed.
+## Permissions & Content Scripts
+- Permissions: `storage`, `activeTab`, `tabs`, `scripting`
+- Host permissions: Etherscan/BscScan/Arbiscan/PolygonScan/BaseScan/Ronin domains (see `manifest.json`)
+- Content scripts: `utils.js`, `content.js` run on supported explorers to render labels, ✎, OSINT menu, and notes tooltip
 
-## Future Enhancements
-- Inline badges via content script  
-- Import/export (CSV, Google Sheets)  
-- Sync labels across devices
+## Privacy
+- No external services; data never leaves your browser
+- Removing the extension deletes its local storage
 
-## Notes
-This MVP avoids external services entirely—everything is processed and saved locally for maximum simplicity and privacy.
+## Troubleshooting
+- Not seeing labels? Refresh the page after saving a label
+- Verify the site is one of the allowed hosts in `manifest.json`
+- For OSINT links, ensure the address is valid (`0x` + 40 hex)
+- Notes are display-only; if you already have a `note` saved for an address it will show via Shift-hover
+
+## File Overview
+- `manifest.json` — MV3 manifest, permissions, content scripts, host list
+- `utils.js` — shared helpers (address parsing/normalization, OSINT pattern building)
+- `content.js` — in-page labeling, ✎ edit menu, OSINT integration, Shift-hover notes tooltip
+- `popup.html` / `popup.js` — popup UI for labeling, OSINT buttons, import/export, OSINT sources manager
+
+## Roadmap
+- Note editor (popover from ✎)
+- Additional explorer presets and source packs
+- Optional sync strategy (manual export/import or cloud)
