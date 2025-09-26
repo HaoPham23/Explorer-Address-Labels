@@ -114,7 +114,7 @@ function injectStyle() {
     .explabel-menu button:hover{
       background:#f2f2f2;
     }
-    .explabel-note { display:inline-block; margin-left:4px; font-size:12px; cursor:default; }
+    .explabel-note { display:inline-block; margin-left:4px; font-size:12px; cursor:help; }
     .explabel-tooltip { position: fixed; z-index:2147483647; background:#111; color:#fff; padding:4px 6px; border-radius:4px; font-size:12px; max-width:280px; box-shadow:0 2px 8px rgba(0,0,0,0.25); }
   `;
   const style = document.createElement('style');
@@ -604,7 +604,20 @@ function closeMenu() {
   explabelKeyHandler = null;
 }
 
-function onTipHover(e){ const t = e.target.closest('.explabel-edit, .explabel-label, .explabel-note'); if (!t){ hideTip(); return; } if (!(e.shiftKey || explabelShiftDown)){ hideTip(); return; } const holder = t.closest('[data-addr]'); const addr = holder?.dataset?.addr; if (!addr){ hideTip(); return; } const note = getNote(addr); if (!note){ hideTip(); return; } const first = note.split(/\r?\n/)[0] || ''; const text = first.length>120 ? first.slice(0,120)+'…' : first; showTipNear(t, text); }
+function onTipHover(e){
+  const t = e.target.closest('.explabel-edit, .explabel-label, .explabel-note');
+  if (!t){ hideTip(); return; }
+  const isNoteIcon = t.classList && t.classList.contains('explabel-note');
+  if (!isNoteIcon && !(e.shiftKey || explabelShiftDown)) { hideTip(); return; }
+  const holder = t.closest('[data-addr]');
+  const addr = holder?.dataset?.addr;
+  if (!addr){ hideTip(); return; }
+  const note = getNote(addr);
+  if (!note){ hideTip(); return; }
+  const first = note.split(/\r?\n/)[0] || '';
+  const text = first.length>120 ? first.slice(0,120)+'…' : first;
+  showTipNear(t, text);
+}
 
 function showTipNear(anchorEl, text){ if (!explabelTip){ const d=document.createElement('div'); d.className='explabel-tooltip'; explabelTip=d; document.body.appendChild(d); } explabelTip.textContent=text; const r=anchorEl.getBoundingClientRect(); explabelTip.style.top=(r.bottom+8)+'px'; const rect=explabelTip.getBoundingClientRect(); let left=r.left; const maxLeft=window.innerWidth-rect.width-8; if (left>maxLeft) left=maxLeft; if (left<8) left=8; explabelTip.style.left=left+'px'; }
 
