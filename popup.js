@@ -28,6 +28,8 @@ async function init() {
   const osintNameEl = document.getElementById('osintName');
   const osintPatternEl = document.getElementById('osintPattern');
   const osintAddBtn = document.getElementById('osintAddBtn');
+  const searchInput = document.getElementById('searchLabel');
+  const searchResultsEl = document.getElementById('searchResults');
 
   let osintSources = await getOsintSources();
   if (!osintSources || !osintSources.length) {
@@ -39,6 +41,48 @@ async function init() {
     await chrome.storage.local.set({ [OSINT_KEY]: updated });
     renderOsintButtons(osintButtonsEl, updated, () => (document.getElementById('addrInput')?.value || ''));
   });
+
+  // ---------- Search by label ----------
+  let allLabels = (await chrome.storage.local.get(LABELS_KEY))[LABELS_KEY] || {};
+  const renderSearch = () => {
+    const q = (searchInput?.value || '').trim().toLowerCase();
+    if (!searchResultsEl) return;
+    if (!q) { searchResultsEl.innerHTML = ''; return; }
+    const items = [];
+    for (const [address, v] of Object.entries(allLabels)) {
+      const lab = (v && v.label) ? String(v.label) : '';
+      if (!lab) continue;
+      if (lab.toLowerCase().includes(q)) items.push({ address, label: lab, updatedAt: v.updatedAt || 0 });
+    }
+    items.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
+    const top = items.slice(0, 50);
+    searchResultsEl.innerHTML = '';
+    top.forEach(it => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.gap = '8px';
+      row.style.padding = '4px 0';
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.flexDirection = 'column';
+      const l1 = document.createElement('div'); l1.textContent = it.label;
+      const l2 = document.createElement('div'); l2.textContent = shorten(it.address); l2.style.fontFamily = 'monospace'; l2.style.color = '#555';
+      left.appendChild(l1); left.appendChild(l2);
+      const btn = document.createElement('button'); btn.textContent = 'Load';
+      btn.addEventListener('click', async () => {
+        manualToggle.checked = true;
+        addrInput.disabled = false;
+        addrInput.value = it.address;
+        await preloadLabelFor(it.address);
+        addrInput.focus();
+      });
+      row.appendChild(left); row.appendChild(btn);
+      searchResultsEl.appendChild(row);
+    });
+  };
+  if (searchInput) searchInput.addEventListener('input', renderSearch);
 
   osintAddBtn.addEventListener('click', async () => {
     clearMessages();
@@ -66,6 +110,12 @@ async function init() {
         await chrome.storage.local.set({ [OSINT_KEY]: u });
         renderOsintButtons(osintButtonsEl, u, () => (document.getElementById('addrInput')?.value || ''));
       });
+    }
+    if (area === 'local' && changes[LABELS_KEY]) {
+      allLabels = changes[LABELS_KEY].newValue || {};
+      if (searchInput && (searchInput.value || '').trim()) {
+        renderSearch();
+      }
     }
   });
 
@@ -386,4 +436,10 @@ function ts() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function shorten(addr) {
+  const a = (addr || '').toLowerCase();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(a)) return addr;
+  return a.slice(0, 6) + '…' + a.slice(-4);
 }
