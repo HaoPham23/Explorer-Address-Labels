@@ -16,8 +16,6 @@ async function init() {
   const url = tab?.url || '';
   const detectedAddr = extractAddressFromUrl(url);
 
-  const detectedEl = document.getElementById('detected');
-  const detectedRow = document.getElementById('detectedRow');
   const manualToggle = document.getElementById('manualToggle');
   const addrInput = document.getElementById('addrInput');
   const labelInput = document.getElementById('label');
@@ -79,7 +77,7 @@ async function init() {
       copyIcon.addEventListener('click', doCopy);
       l2.appendChild(addrSpan); l2.appendChild(copyIcon); l2.appendChild(copied);
       left.appendChild(l1); left.appendChild(l2);
-      const btn = document.createElement('button'); btn.textContent = 'Load';
+      const btn = document.createElement('button'); btn.textContent = 'Edit';
       btn.addEventListener('click', async () => {
         manualToggle.checked = true;
         addrInput.disabled = false;
@@ -135,13 +133,10 @@ async function init() {
   });
 
   if (detectedAddr) {
-    detectedEl.textContent = detectedAddr;
-    detectedRow.style.display = '';
     addrInput.value = detectedAddr;
     manualToggle.checked = false;
     addrInput.disabled = true;
   } else {
-    detectedRow.style.display = 'none';
     manualToggle.checked = true;
     addrInput.disabled = false;
   }
