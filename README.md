@@ -7,6 +7,12 @@ Labels are shown inline on explorer pages with a small edit button and optional 
 ## Disclaimer
 This is a “vibe code” project: experimental, evolving, and provided as‑is with no warranties. Expect rough edges; use at your own discretion.
 
+## Screenshots
+
+![Popup](assets/Screenshot.png)
+
+![Inline labels](assets/Screenshot-2.png)
+
 ## Key Features
 - Inline labeling on explorer pages
   - Replaces/augments addresses with your saved label
