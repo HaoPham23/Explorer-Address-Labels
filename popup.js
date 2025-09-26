@@ -21,6 +21,7 @@ async function init() {
   const manualToggle = document.getElementById('manualToggle');
   const addrInput = document.getElementById('addrInput');
   const labelInput = document.getElementById('label');
+  const noteInput = document.getElementById('note');
   const saveBtn = document.getElementById('save');
   const delBtn = document.getElementById('delete');
   const osintButtonsEl = document.getElementById('osintButtons');
@@ -153,9 +154,13 @@ async function init() {
     if (!isValidAddr(addrRaw)) return setError('Enter a valid address (0x…)');
     const norm = normalize(addrRaw);
     const label = labelInput.value.trim();
-    if (!label) return setError('Label is required');
+    const note = (noteInput?.value || '').trim();
+    if (!label && !note) return setError('Enter a label or note');
     const { [LABELS_KEY]: labels = {} } = await chrome.storage.local.get(LABELS_KEY);
-    labels[norm] = { label, updatedAt: Date.now() };
+    const obj = { updatedAt: Date.now() };
+    if (label) obj.label = label;
+    if (note) obj.note = note;
+    labels[norm] = obj;
     await chrome.storage.local.set({ [LABELS_KEY]: labels });
     setMsg('Saved ✔');
     await notifyPage();
@@ -171,6 +176,7 @@ async function init() {
       delete labels[norm];
       await chrome.storage.local.set({ [LABELS_KEY]: labels });
       labelInput.value = '';
+      if (noteInput) noteInput.value = '';
       setMsg('Deleted');
       await notifyPage();
     } else {
@@ -229,6 +235,8 @@ async function preloadLabelFor(addrRaw) {
   const existing = (data && data[LABELS_KEY]) || {};
   const labelInput = document.getElementById('label');
   labelInput.value = existing[norm]?.label || '';
+  const noteInput = document.getElementById('note');
+  if (noteInput) noteInput.value = existing[norm]?.note || '';
 }
 
 function extractAddressFromUrl(url) {
@@ -293,13 +301,17 @@ function labelsToCsv(labels) {
 }
 
 function labelsToJson(labels) {
-  const arr = Object.entries(labels).map(([address, v]) => ({ address, label: v.label || '' }));
+  const arr = Object.entries(labels).map(([address, v]) => {
+    const out = { address, label: v.label || '' };
+    if (v.note) out.note = v.note;
+    return out;
+  });
   return JSON.stringify(arr, null, 2);
 }
 
 function parseJson(text) {
   const data = JSON.parse(text);
-  if (Array.isArray(data)) return data.map(x => ({ address: x.address, label: x.label }));
+  if (Array.isArray(data)) return data.map(x => ({ address: x.address, label: x.label, note: x.note }));
   if (data && typeof data === 'object')
     return Object.entries(data).map(([address, label]) => ({ address, label }));
   return [];
@@ -358,8 +370,12 @@ async function mergeImported(items) {
   for (const it of items) {
     const norm = normalize(it.address);
     const label = (it.label || '').trim();
-    if (!norm || !label) continue;
-    existing[norm] = { label, updatedAt: now };
+    const note = (it.note || '').trim();
+    if (!norm || (!label && !note)) continue;
+    const obj = { updatedAt: now };
+    if (label) obj.label = label;
+    if (note) obj.note = note;
+    existing[norm] = obj;
     count++;
   }
   await chrome.storage.local.set({ [LABELS_KEY]: existing });
