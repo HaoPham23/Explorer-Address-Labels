@@ -4,30 +4,57 @@
   <meta charset="utf-8">
   <title>Ronin Labels</title>
   <style>
-    body { min-width: 320px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; padding: 12px; }
+    :root {
+      --bg: #f7f8fb;
+      --card-bg: #fff;
+      --text: #222;
+      --muted: #667085;
+      --border: #E5E7EB;
+      --primary: #1f6feb;
+      --primary-600: #1a60cf;
+      --danger: #c62828;
+      --success: #2e7d32;
+    }
+    body { min-width: 340px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; margin:0; background: var(--bg); color: var(--text); }
+    .container { padding: 12px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 12px; }
+    .header { display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--card-bg); position: sticky; top: 0; z-index: 10; }
+    .title { font-weight: 700; letter-spacing: .2px; }
     .row { margin: 8px 0; }
-    input[type="text"], input[type="url"] { width: 100%; box-sizing: border-box; padding: 6px 8px; }
-    .muted { color: #555; font-size: 12px; }
+    input[type="text"], input[type="url"], textarea, select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background:#fff; }
+    input::placeholder, textarea::placeholder { color:#9AA1A9; }
+    .muted { color: var(--muted); font-size: 12px; }
     .actions { display: flex; gap: 8px; }
-    #msg { margin-top: 6px; color: #2e7d32; }
-    #error { margin-top: 6px; color: #c62828; }
-    #detectedRow { margin-bottom: 4px; }
-    #detected { font-weight: 600; word-break: break-all; }
+    button { appearance:none; border:1px solid var(--border); background:#fff; padding:6px 10px; border-radius:8px; cursor:pointer; }
+    button:hover { background:#f6f8fa; }
+    .btn-primary { background: var(--primary); color:#fff; border-color: transparent; }
+    .btn-primary:hover { background: var(--primary-600); }
+    .btn-danger { border-color: #f1c1c1; color: var(--danger); background:#fff; }
+    .btn-danger:hover { background:#fdecec; }
+    #msg { margin-top: 6px; color: var(--success); }
+    #error { margin-top: 6px; color: var(--danger); }
     /* Search dropdown panel */
     .search-row { position: relative; }
-    .search-toggle { position: absolute; right: 4px; top: 4px; padding: 4px 6px; font-size: 12px; }
-    .search-panel { position: absolute; left: 0; right: 0; top: 36px; background: #fff; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 260px; overflow: auto; z-index: 1000; }
-    .search-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #f6f6f6; }
+    .search-panel { position: absolute; left: 0; right: 0; top: 40px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.12); max-height: 260px; overflow: auto; z-index: 1000; }
+    .search-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+    .search-item:hover { background:#f9fafb; }
     .search-item .meta { display: flex; flex-direction: column; }
     .search-item .addr { font-family: monospace; color: #555; word-break: break-all; }
     .search-item .addr .addr-text { cursor: pointer; }
     .search-item .addr .copy-icon { display: inline-block; margin-left: 6px; cursor: pointer; }
     .search-item .addr .copy-icon svg { vertical-align: text-bottom; color: #666; }
     .search-item .addr .copy-icon:hover svg { color: #111; }
-    .search-item .addr .copied-text { margin-left: 6px; color: #2e7d32; font-size: 12px; }
+    .search-item .addr .copied-text { margin-left: 6px; color: var(--success); font-size: 12px; }
+    /* OSINT chips */
+    #osintButtons { display:flex; flex-wrap:wrap; gap:8px; }
+    #osintButtons button { border-radius: 999px; padding:6px 12px; border:1px solid var(--border); background:#ffffff; }
+    #osintButtons button:hover { background:#f6f8fa; }
+    hr { margin:12px 0; border:none; border-top:1px solid var(--border); }
   </style>
 </head>
 <body>
+  <div class="header"><div class="title">Address Labels</div></div>
+  <div class="container card">
   <div class="row">
     <label class="muted"><input id="manualToggle" type="checkbox"> Enter address manually</label>
   </div>
@@ -42,8 +69,8 @@
     <textarea id="note" placeholder="Enter note (optional)" rows="3" style="width:100%; box-sizing:border-box; padding:6px 8px;"></textarea>
   </div>
   <div class="actions">
-    <button id="save">Save</button>
-    <button id="delete" title="Remove existing label">Delete</button>
+    <button id="save" class="btn-primary">Save</button>
+    <button id="delete" class="btn-danger" title="Remove existing label">Delete</button>
   </div>
   <div id="msg"></div>
   <div id="error"></div>
@@ -59,9 +86,9 @@
 
   <!-- OSINT quick-links (dynamic) -->
   <div class="row muted">OSINT</div>
-  <div id="osintButtons" class="row" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+  <div id="osintButtons" class="row"></div>
 
-  <hr style="margin:12px 0; border:none; border-top:1px solid #eee;">
+  <hr>
   <div class="row muted">Import/Export</div>
   <div class="row" style="display:flex; gap:8px; align-items:center;">
     <label class="muted">Format
@@ -70,12 +97,12 @@
         <option value="csv">CSV</option>
       </select>
     </label>
-    <button id="exportBtn" style="margin-left:auto;">Export</button>
+    <button id="exportBtn" style="margin-left:auto;" class="">Export</button>
     <button id="importBtn">Import</button>
     <input id="fileInput" type="file" accept=".json,.csv,text/csv,application/json" style="display:none;" />
   </div>
 
-  <hr style="margin:12px 0; border:none; border-top:1px solid #eee;">
+  <hr>
   <div class="row muted">OSINT sources</div>
   <div id="osintList" class="row"></div>
   <div class="row" style="display:flex; gap:8px;">
@@ -83,10 +110,11 @@
     <input id="osintPattern" type="text" placeholder="Sample URL (paste any address URL, e.g., https://intel.arkm.com/explorer/address/0x…)">
   </div>
   <div class="actions">
-    <button id="osintAddBtn">Add source</button>
+    <button id="osintAddBtn" class="btn-primary">Add source</button>
   </div>
 
   <script src="utils.js"></script>
   <script src="popup.js"></script>
+  </div>
 </body>
 </html>
