@@ -4,6 +4,8 @@ let osintSources = [];
 let labels = {};
 // Debounce timer for expensive annotate work
 let scheduleTimer = null;
+let pendingRoots = new Set();
+let initialAnnotated = false;
 let explabelMenu = null; let explabelMenuAddr = null; let explabelOutside = null; let explabelKeyHandler = null;
 let explabelTip = null; let explabelShiftDown = false;
 
@@ -26,7 +28,17 @@ async function init() {
   await loadLabels();
   await loadOsintSources();
   annotatePage();
-  const observer = new MutationObserver(() => scheduleAnnotate());
+  const observer = new MutationObserver((records) => {
+    for (const rec of records) {
+      if (rec.addedNodes && rec.addedNodes.length) {
+        rec.addedNodes.forEach((n) => {
+          if (n && n.nodeType === Node.ELEMENT_NODE) {
+            scheduleAnnotate(n);
+          }
+        });
+      }
+    }
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes[LABELS_KEY]) {
@@ -39,7 +51,7 @@ async function init() {
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'labelsUpdated') {
-      loadLabels().then(scheduleAnnotate);
+      loadLabels().then(() => scheduleAnnotate());
     }
   });
   document.addEventListener('mousemove', onTipHover, true);
@@ -122,11 +134,18 @@ async function loadOsintSources() {
 }
 
 // Debounced annotate helper
-function scheduleAnnotate() {
+function scheduleAnnotate(root) {
+  if (root) pendingRoots.add(root);
   if (scheduleTimer) return;
   scheduleTimer = setTimeout(() => {
     scheduleTimer = null;
-    annotatePage();
+    if (pendingRoots.size > 0) {
+      const roots = Array.from(pendingRoots);
+      pendingRoots.clear();
+      annotateIncremental(roots);
+    } else {
+      annotatePage();
+    }
   }, 250);
 }
 
@@ -137,41 +156,59 @@ function annotatePage() {
   updateExistingFullWrappers();
   replaceAnchorTexts();
   if (hasLabels) replaceTextNodes();
+  initialAnnotated = true;
+}
+
+function annotateIncremental(roots) {
+  // Process only within provided roots to avoid full-page rescans.
+  const hasLabels = Object.keys(labels).length > 0;
+  for (const root of roots) {
+    if (!root || !root.isConnected) continue;
+    // Anchors in this subtree (include the root itself if it is an anchor)
+    if (root.matches && root.matches('a[href*="/address/"]')) processAnchor(root);
+    root.querySelectorAll && root.querySelectorAll('a[href*="/address/"]').forEach(processAnchor);
+    // Text nodes in this subtree (only if we have labels)
+    if (hasLabels) replaceTextNodesInRoot(root);
+  }
 }
 
 function replaceAnchorTexts() {
   const anchors = document.querySelectorAll('a[href*="/address/"]');
-  anchors.forEach(a => {
-    const addr = extractAddressFromUrl(a.href);
-    if (!addr) return;
-    const key = normalize(addr);
-    const label = labels[key]?.label;
-    
-    if (label) {
-      if (!a.dataset.explabelOrig) a.dataset.explabelOrig = a.textContent;
-      a.dataset.addr = key;
-      
-      // Clear existing content
-      a.textContent = '';
-      
-      // Create and append label span
-      const span = document.createElement('span');
-      span.className = 'explabel-label';
-      span.textContent = label;
-      span.title = addr;
-      a.appendChild(span);
-    } else if (a.dataset.explabelOrig) {
-      // label removed; restore original
-      a.textContent = a.dataset.explabelOrig;
-      delete a.dataset.explabelOrig;
-      delete a.dataset.addr;
-      a.removeAttribute('title');
-      const next=a.nextElementSibling; if (next && next.classList.contains('explabel-note')) next.remove();
-    }
-    // Always ensure an edit button exists after the anchor
-    const editBtn = ensureEditAfter(a, key);
-    ensureNoteAfter(editBtn, key);
-  });
+  anchors.forEach(processAnchor);
+}
+
+function processAnchor(a){
+  if (!a || !a.href) return;
+  const addr = extractAddressFromUrl(a.href);
+  if (!addr) return;
+  const key = normalize(addr);
+  const label = labels[key]?.label;
+  // If this anchor already has our edit button next to it and no label change is required, skip heavy ops
+  const hasEdit = a.nextElementSibling && a.nextElementSibling.classList && a.nextElementSibling.classList.contains('explabel-edit') && a.nextElementSibling.dataset.addr === key;
+  if (!label && hasEdit && !a.dataset.explabelOrig) {
+    // No label and already has edit button; nothing else to do
+    return;
+  }
+  if (label) {
+    if (!a.dataset.explabelOrig) a.dataset.explabelOrig = a.textContent;
+    a.dataset.addr = key;
+    // Clear and render label span
+    a.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'explabel-label';
+    span.textContent = label;
+    span.title = addr;
+    a.appendChild(span);
+  } else if (a.dataset.explabelOrig) {
+    // label removed; restore original
+    a.textContent = a.dataset.explabelOrig;
+    delete a.dataset.explabelOrig;
+    delete a.dataset.addr;
+    a.removeAttribute('title');
+    const next=a.nextElementSibling; if (next && next.classList.contains('explabel-note')) next.remove();
+  }
+  const editBtn = ensureEditAfter(a, key);
+  ensureNoteAfter(editBtn, key);
 }
 
 function ensureEditAfter(element, addr) {
@@ -208,6 +245,30 @@ function replaceTextNodes() {
   }
   toProcess.forEach(n => replaceMatchesInTextNode(n));
   if (more) scheduleAnnotate(); // continue processing remaining nodes later
+}
+
+function replaceTextNodesInRoot(root) {
+  const MAX_NODES = 200;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => {
+      if (!n.nodeValue || !n.parentElement) return NodeFilter.FILTER_REJECT;
+      const tag = n.parentElement.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+      if (n.parentElement.closest('a')) return NodeFilter.FILTER_REJECT;
+      if (n.parentElement.closest('.explabel-wrap-short')) return NodeFilter.FILTER_REJECT;
+      if (n.parentElement.closest('.explabel-wrap-full')) return NodeFilter.FILTER_REJECT;
+      return /(0x[0-9a-fA-F]{40}|0x[0-9a-fA-F]{4,20}(?:…|\.{3})[0-9a-fA-F]{4,20})/.test(n.nodeValue)
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    }
+  });
+  const toProcess = [];
+  let node; let counter = 0;
+  while ((node = walker.nextNode())) {
+    toProcess.push(node);
+    if (++counter >= MAX_NODES) break;
+  }
+  toProcess.forEach(n => replaceMatchesInTextNode(n));
 }
 
 // ---------- replacement helpers ----------
