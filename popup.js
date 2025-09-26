@@ -28,7 +28,6 @@ async function init() {
   const osintPatternEl = document.getElementById('osintPattern');
   const osintAddBtn = document.getElementById('osintAddBtn');
   const searchInput = document.getElementById('searchLabel');
-  const openSearchPanelBtn = document.getElementById('openSearchPanel');
   const searchPanel = document.getElementById('searchPanel');
   const searchPanelResults = document.getElementById('searchPanelResults');
   const searchRow = document.getElementById('searchRow');
@@ -49,7 +48,6 @@ async function init() {
   const renderSearch = () => {
     const q = (searchInput?.value || '').trim().toLowerCase();
     if (!searchPanelResults) return;
-    if (!q) { searchPanelResults.innerHTML = ''; searchPanel.style.display='none'; return; }
     const items = [];
     for (const [address, v] of Object.entries(allLabels)) {
       const lab = (v && v.label) ? String(v.label) : '';
@@ -57,7 +55,7 @@ async function init() {
       const labL = lab.toLowerCase();
       const noteL = note.toLowerCase();
       if (!labL && !noteL) continue;
-      if (labL.includes(q) || noteL.includes(q)) items.push({ address, label: lab || '(no label)', updatedAt: v.updatedAt || 0 });
+      if (!q || labL.includes(q) || noteL.includes(q)) items.push({ address, label: lab || '(no label)', updatedAt: v.updatedAt || 0 });
     }
     items.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
     const top = items.slice(0, 100);
@@ -92,10 +90,8 @@ async function init() {
     searchPanel.style.display = top.length ? '' : 'none';
   };
   function hideSearchPanel(){ if (searchPanel) searchPanel.style.display='none'; }
-  function toggleSearchPanel(){ if (!searchPanel) return; if (searchPanel.style.display==='none' || !searchPanel.style.display){ searchPanel.style.display=''; renderSearch(); } else { hideSearchPanel(); } }
   if (searchInput) searchInput.addEventListener('input', () => { renderSearch(); });
-  if (searchInput) searchInput.addEventListener('focus', () => { if ((searchInput.value||'').trim()) { searchPanel.style.display=''; renderSearch(); }});
-  if (openSearchPanelBtn) openSearchPanelBtn.addEventListener('click', () => toggleSearchPanel());
+  if (searchInput) searchInput.addEventListener('focus', () => { searchPanel.style.display=''; renderSearch(); });
   document.addEventListener('mousedown', (e) => { if (searchRow && !searchRow.contains(e.target)) hideSearchPanel(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideSearchPanel(); });
 
@@ -128,7 +124,7 @@ async function init() {
     }
     if (area === 'local' && changes[LABELS_KEY]) {
       allLabels = changes[LABELS_KEY].newValue || {};
-      if (searchInput && (searchInput.value || '').trim()) { renderSearch(); }
+      renderSearch();
     }
   });
 
