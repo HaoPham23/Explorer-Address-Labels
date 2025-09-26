@@ -17,8 +17,11 @@ async function init() {
     const items = [];
     for (const [address, v] of Object.entries(all)) {
       const lab = (v && v.label) ? String(v.label) : '';
-      if (!lab) continue;
-      if (lab.toLowerCase().includes(q)) items.push({ address, label: lab, updatedAt: v.updatedAt || 0 });
+      const note = (v && v.note) ? String(v.note) : '';
+      const labL = lab.toLowerCase();
+      const noteL = note.toLowerCase();
+      if (!labL && !noteL) continue;
+      if (labL.includes(q) || noteL.includes(q)) items.push({ address, label: lab || '(no label)', updatedAt: v.updatedAt || 0 });
     }
     items.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
     items.forEach(it => {
