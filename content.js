@@ -227,6 +227,7 @@ function ensureEditAfter(element, addr) {
     let inner = element.querySelector('.explabel-edit');
     if (inner) {
       if (inner.dataset.addr !== addr) inner.dataset.addr = addr;
+      ensureEditIcon(inner);
       return inner;
     }
     const btn = createEditButton(addr);
@@ -457,7 +458,7 @@ function updateExistingShortWrappers() {
       if (!editBtn) {
         editBtn = createEditButton(key);
         wrap.appendChild(editBtn);
-      }
+      } else { ensureEditIcon(editBtn); editBtn.dataset.addr = key; }
       ensureNoteAfter(editBtn, key);
     } else {
       // remove wrapper entirely and restore original shortened text
@@ -496,8 +497,9 @@ function updateExistingFullWrappers() {
     if (!editBtn) {
       editBtn = createEditButton(key);
       wrap.appendChild(editBtn);
-    } else if (editBtn.dataset.addr !== key) {
-      editBtn.dataset.addr = key;
+    } else {
+      if (editBtn.dataset.addr !== key) editBtn.dataset.addr = key;
+      ensureEditIcon(editBtn);
     }
     ensureNoteAfter(editBtn, key);
   });
@@ -507,10 +509,16 @@ function createEditButton(addr) {
   const b = document.createElement('span');
   b.className = 'explabel-edit';
   b.dataset.addr = addr;
-  b.textContent = '✎';
+  b.innerHTML = getEditIconSvg();
   b.title = 'Edit / OSINT';
   b.addEventListener('click', onEditClick);
   return b;
+}
+
+function ensureEditIcon(el){ if (el) el.innerHTML = getEditIconSvg(); }
+
+function getEditIconSvg(){
+  return '<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g><path fill="none" d="M0 0h24v24H0z"/><path d="M15.728 9.686l-1.414-1.414L5 17.586V19h1.414l9.314-9.314zm1.414-1.414l1.414-1.414-1.414-1.414-1.414 1.414 1.414 1.414zM7.242 21H3v-4.243L16.435 3.322a1 1 0 0 1 1.414 0l2.829 2.829a1 1 0 0 1 0 1.414L7.243 21z"/></g></svg>';
 }
 
 function getNote(addr){ const n = labels[addr]?.note; return (typeof n === 'string') ? n.trim() : ''; }
