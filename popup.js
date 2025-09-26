@@ -69,10 +69,15 @@ async function init() {
       row.className = 'search-item';
       const left = document.createElement('div'); left.className = 'meta';
       const l1 = document.createElement('div'); l1.textContent = it.label;
-      const l2 = document.createElement('div'); l2.textContent = it.address; l2.className = 'addr'; l2.title = 'Click to copy';
-      l2.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(it.address); } catch {}
-      });
+      const l2 = document.createElement('div'); l2.className = 'addr';
+      const addrSpan = document.createElement('span'); addrSpan.className = 'addr-text'; addrSpan.textContent = it.address; addrSpan.title = 'Click to copy';
+      const copyIcon = document.createElement('span'); copyIcon.className = 'copy-icon';
+      copyIcon.innerHTML = '<svg class="ml-4 cursor-pointer text-tc-icon" viewBox="0 0 20 20" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M3 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm12 12a1 1 0 0 1-1 1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1v6Z" clip-rule="evenodd"></path></svg>';
+      const copied = document.createElement('span'); copied.className = 'copied-text'; copied.textContent = 'copied'; copied.style.display = 'none';
+      const doCopy = async () => { try { await navigator.clipboard.writeText(it.address); copied.style.display = 'inline'; setTimeout(()=> copied.style.display='none', 900); } catch {} };
+      addrSpan.addEventListener('click', doCopy);
+      copyIcon.addEventListener('click', doCopy);
+      l2.appendChild(addrSpan); l2.appendChild(copyIcon); l2.appendChild(copied);
       left.appendChild(l1); left.appendChild(l2);
       const btn = document.createElement('button'); btn.textContent = 'Load';
       btn.addEventListener('click', async () => {

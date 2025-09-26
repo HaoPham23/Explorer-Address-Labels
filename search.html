@@ -10,7 +10,12 @@
     #results { max-height: 480px; overflow: auto; }
     .item { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #f2f2f2; }
     .meta { display:flex; flex-direction:column; }
-    .addr { font-family: monospace; color:#555; cursor: pointer; word-break: break-all; }
+    .addr { font-family: monospace; color:#555; word-break: break-all; }
+    .addr .addr-text { cursor: pointer; }
+    .addr .copy-icon { display: inline-block; margin-left: 6px; cursor: pointer; }
+    .addr .copy-icon svg { vertical-align: text-bottom; color:#666; }
+    .addr .copy-icon:hover svg { color:#111; }
+    .addr .copied-text { margin-left: 6px; color: #2e7d32; font-size: 12px; }
     .actions { display:flex; gap:8px; }
   </style>
   <script src="utils.js"></script>
