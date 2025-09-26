@@ -1,6 +1,11 @@
-# Address Labels for Block Explorers (Chrome Extension)
+# explabel
 
-Label blockchain addresses directly on popular explorers (Etherscan, BscScan, Arbiscan, PolygonScan, BaseScan, Ronin). Labels are shown inline on the page with a small ✎ edit button and optional OSINT quick links. All data stays local in your browser profile.
+Chrome extension to label blockchain addresses on Etherscan/BscScan/Arbiscan/PolygonScan/BaseScan with inline edit, notes, search, and OSINT quick links — all stored locally (no data leaves your browser).
+
+Labels are shown inline on explorer pages with a small edit button and optional OSINT quick links. All data stays local in your browser profile.
+
+## Disclaimer
+This is a “vibe code” project: experimental, evolving, and provided as‑is with no warranties. Expect rough edges; use at your own discretion.
 
 ## Key Features
 - Inline labeling on explorer pages
