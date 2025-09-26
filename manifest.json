@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Ronin Explorer Address Labels",
+  "name": "Explorer Address Labels",
   "version": "0.1.0",
-  "description": "Label addresses on app.roninchain.com via popup with local storage.",
+  "description": "Label addresses on explorers locally.",
   "action": { "default_popup": "popup.html" },
   "permissions": ["storage", "activeTab", "tabs", "scripting"],
   "host_permissions": [
