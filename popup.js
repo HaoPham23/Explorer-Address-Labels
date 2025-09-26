@@ -30,8 +30,10 @@ async function init() {
   const osintPatternEl = document.getElementById('osintPattern');
   const osintAddBtn = document.getElementById('osintAddBtn');
   const searchInput = document.getElementById('searchLabel');
-  const searchResultsEl = document.getElementById('searchResults');
   const openSearchPanelBtn = document.getElementById('openSearchPanel');
+  const searchPanel = document.getElementById('searchPanel');
+  const searchPanelResults = document.getElementById('searchPanelResults');
+  const searchRow = document.getElementById('searchRow');
 
   let osintSources = await getOsintSources();
   if (!osintSources || !osintSources.length) {
@@ -48,8 +50,8 @@ async function init() {
   let allLabels = (await chrome.storage.local.get(LABELS_KEY))[LABELS_KEY] || {};
   const renderSearch = () => {
     const q = (searchInput?.value || '').trim().toLowerCase();
-    if (!searchResultsEl) return;
-    if (!q) { searchResultsEl.innerHTML = ''; return; }
+    if (!searchPanelResults) return;
+    if (!q) { searchPanelResults.innerHTML = ''; searchPanel.style.display='none'; return; }
     const items = [];
     for (const [address, v] of Object.entries(allLabels)) {
       const lab = (v && v.label) ? String(v.label) : '';
@@ -57,20 +59,14 @@ async function init() {
       if (lab.toLowerCase().includes(q)) items.push({ address, label: lab, updatedAt: v.updatedAt || 0 });
     }
     items.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
-    const top = items.slice(0, 50);
-    searchResultsEl.innerHTML = '';
+    const top = items.slice(0, 100);
+    searchPanelResults.innerHTML = '';
     top.forEach(it => {
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.justifyContent = 'space-between';
-      row.style.gap = '8px';
-      row.style.padding = '4px 0';
-      const left = document.createElement('div');
-      left.style.display = 'flex';
-      left.style.flexDirection = 'column';
+      row.className = 'search-item';
+      const left = document.createElement('div'); left.className = 'meta';
       const l1 = document.createElement('div'); l1.textContent = it.label;
-      const l2 = document.createElement('div'); l2.textContent = shorten(it.address); l2.style.fontFamily = 'monospace'; l2.style.color = '#555';
+      const l2 = document.createElement('div'); l2.textContent = shorten(it.address); l2.className = 'addr';
       left.appendChild(l1); left.appendChild(l2);
       const btn = document.createElement('button'); btn.textContent = 'Load';
       btn.addEventListener('click', async () => {
@@ -79,17 +75,20 @@ async function init() {
         addrInput.value = it.address;
         await preloadLabelFor(it.address);
         addrInput.focus();
+        hideSearchPanel();
       });
       row.appendChild(left); row.appendChild(btn);
-      searchResultsEl.appendChild(row);
+      searchPanelResults.appendChild(row);
     });
+    searchPanel.style.display = top.length ? '' : 'none';
   };
-  if (searchInput) searchInput.addEventListener('input', renderSearch);
-  if (openSearchPanelBtn) openSearchPanelBtn.addEventListener('click', async () => {
-    const q = encodeURIComponent(searchInput?.value || '');
-    const url = chrome.runtime.getURL(`search.html?q=${q}`);
-    await chrome.windows.create({ url, type: 'popup', width: 420, height: 600 });
-  });
+  function hideSearchPanel(){ if (searchPanel) searchPanel.style.display='none'; }
+  function toggleSearchPanel(){ if (!searchPanel) return; if (searchPanel.style.display==='none' || !searchPanel.style.display){ searchPanel.style.display=''; renderSearch(); } else { hideSearchPanel(); } }
+  if (searchInput) searchInput.addEventListener('input', () => { renderSearch(); });
+  if (searchInput) searchInput.addEventListener('focus', () => { if ((searchInput.value||'').trim()) { searchPanel.style.display=''; renderSearch(); }});
+  if (openSearchPanelBtn) openSearchPanelBtn.addEventListener('click', () => toggleSearchPanel());
+  document.addEventListener('mousedown', (e) => { if (searchRow && !searchRow.contains(e.target)) hideSearchPanel(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideSearchPanel(); });
 
   osintAddBtn.addEventListener('click', async () => {
     clearMessages();
@@ -120,9 +119,7 @@ async function init() {
     }
     if (area === 'local' && changes[LABELS_KEY]) {
       allLabels = changes[LABELS_KEY].newValue || {};
-      if (searchInput && (searchInput.value || '').trim()) {
-        renderSearch();
-      }
+      if (searchInput && (searchInput.value || '').trim()) { renderSearch(); }
     }
   });
 
