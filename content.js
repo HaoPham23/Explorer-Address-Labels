@@ -85,6 +85,7 @@ function injectStyle() {
       color: #1f6feb;
       font-weight: 600;
     }
+    .explabel-label-short { margin-left: 4px; }
     .explabel-addr-text {
       font-family: monospace;
     }
