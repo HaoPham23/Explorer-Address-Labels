@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Label addresses on explorers locally.",
   "action": { "default_popup": "popup.html" },
-  "permissions": ["storage", "activeTab", "tabs", "scripting"],
+  "permissions": ["storage", "scripting"],
   "host_permissions": [
     "*://app.roninchain.com/*",
     "*://etherscan.io/*", "*://*.etherscan.io/*",
