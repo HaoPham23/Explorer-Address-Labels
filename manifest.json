@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Explorer Address Labels",
+  "name": "explabel",
   "version": "0.1.0",
   "description": "Label addresses on explorers locally.",
   "action": { "default_popup": "popup.html" },
