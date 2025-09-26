@@ -16,12 +16,12 @@
       --success: #2e7d32;
     }
     body { min-width: 340px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; margin:0; background: var(--bg); color: var(--text); }
-    .container { padding: 12px; }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 12px; }
-    .header { display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--card-bg); position: sticky; top: 0; z-index: 10; }
+    .container { padding: 10px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 10px; }
+    .header { display:flex; align-items:center; justify-content:space-between; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--card-bg); }
     .title { font-weight: 700; letter-spacing: .2px; }
-    .row { margin: 8px 0; }
-    input[type="text"], input[type="url"], textarea, select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background:#fff; }
+    .row { margin: 6px 0; }
+    input[type="text"], input[type="url"], textarea, select { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background:#fff; }
     input::placeholder, textarea::placeholder { color:#9AA1A9; }
     .muted { color: var(--muted); font-size: 12px; }
     .actions { display: flex; gap: 8px; }
@@ -35,8 +35,8 @@
     #error { margin-top: 6px; color: var(--danger); }
     /* Search dropdown panel */
     .search-row { position: relative; }
-    .search-panel { position: absolute; left: 0; right: 0; top: 40px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.12); max-height: 260px; overflow: auto; z-index: 1000; }
-    .search-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+    .search-panel { position: absolute; left: 0; right: 0; top: 34px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.12); max-height: 220px; overflow: auto; z-index: 1000; }
+    .search-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #f3f4f6; }
     .search-item:hover { background:#f9fafb; }
     .search-item .meta { display: flex; flex-direction: column; }
     .search-item .addr { font-family: monospace; color: #555; word-break: break-all; }
@@ -49,7 +49,10 @@
     #osintButtons { display:flex; flex-wrap:wrap; gap:8px; }
     #osintButtons button { border-radius: 999px; padding:6px 12px; border:1px solid var(--border); background:#ffffff; }
     #osintButtons button:hover { background:#f6f8fa; }
-    hr { margin:12px 0; border:none; border-top:1px solid var(--border); }
+    hr { margin:10px 0; border:none; border-top:1px solid var(--border); }
+    details { border: 1px dashed var(--border); border-radius: 8px; padding: 6px 8px; background:#fff; }
+    details > summary { list-style: none; cursor: pointer; color: var(--muted); font-weight: 600; }
+    details > summary::-webkit-details-marker { display:none; }
   </style>
 </head>
 <body>
@@ -66,7 +69,7 @@
     <input id="label" type="text" placeholder="Enter label" />
   </div>
   <div class="row">
-    <textarea id="note" placeholder="Enter note (optional)" rows="3" style="width:100%; box-sizing:border-box; padding:6px 8px;"></textarea>
+    <textarea id="note" placeholder="Enter note (optional)" rows="2" style="width:100%; box-sizing:border-box; padding:6px 8px;"></textarea>
   </div>
   <div class="actions">
     <button id="save" class="btn-primary">Save</button>
@@ -76,7 +79,7 @@
   <div id="error"></div>
 
   <!-- Search by label -->
-  <div class="row muted">Search by label</div>
+  <div class="row muted">Search by label or note</div>
   <div class="row search-row" id="searchRow">
     <input id="searchLabel" type="text" placeholder="Search label…" />
     <div id="searchPanel" class="search-panel" style="display:none;">
@@ -89,29 +92,32 @@
   <div id="osintButtons" class="row"></div>
 
   <hr>
-  <div class="row muted">Import/Export</div>
-  <div class="row" style="display:flex; gap:8px; align-items:center;">
-    <label class="muted">Format
-      <select id="format" style="margin-left:6px;">
-        <option value="json" selected>JSON</option>
-        <option value="csv">CSV</option>
-      </select>
-    </label>
-    <button id="exportBtn" style="margin-left:auto;" class="">Export</button>
-    <button id="importBtn">Import</button>
-    <input id="fileInput" type="file" accept=".json,.csv,text/csv,application/json" style="display:none;" />
-  </div>
+  <details id="impExp">
+    <summary class="muted">Import/Export</summary>
+    <div class="row" style="display:flex; gap:8px; align-items:center;">
+      <label class="muted">Format
+        <select id="format" style="margin-left:6px;">
+          <option value="json" selected>JSON</option>
+          <option value="csv">CSV</option>
+        </select>
+      </label>
+      <button id="exportBtn" style="margin-left:auto;" class="">Export</button>
+      <button id="importBtn">Import</button>
+      <input id="fileInput" type="file" accept=".json,.csv,text/csv,application/json" style="display:none;" />
+    </div>
+  </details>
 
-  <hr>
-  <div class="row muted">OSINT sources</div>
-  <div id="osintList" class="row"></div>
-  <div class="row" style="display:flex; gap:8px;">
-    <input id="osintName" type="text" placeholder="Site name (e.g., Arkham)">
-    <input id="osintPattern" type="text" placeholder="Sample URL (paste any address URL, e.g., https://intel.arkm.com/explorer/address/0x…)">
-  </div>
-  <div class="actions">
-    <button id="osintAddBtn" class="btn-primary">Add source</button>
-  </div>
+  <details id="osintManage" style="margin-top:10px;">
+    <summary class="muted">Manage OSINT sources</summary>
+    <div id="osintList" class="row"></div>
+    <div class="row" style="display:flex; gap:8px;">
+      <input id="osintName" type="text" placeholder="Site name (e.g., Arkham)">
+      <input id="osintPattern" type="text" placeholder="Sample URL (paste any address URL, e.g., https://intel.arkm.com/explorer/address/0x…)">
+    </div>
+    <div class="actions">
+      <button id="osintAddBtn" class="btn-primary">Add source</button>
+    </div>
+  </details>
 
   <script src="utils.js"></script>
   <script src="popup.js"></script>
