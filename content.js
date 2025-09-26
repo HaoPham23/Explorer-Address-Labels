@@ -183,8 +183,11 @@ function processAnchor(a){
   if (!addr) return;
   const key = normalize(addr);
   const label = labels[key]?.label;
-  // If this anchor already has our edit button next to it and no label change is required, skip heavy ops
-  const hasEdit = a.nextElementSibling && a.nextElementSibling.classList && a.nextElementSibling.classList.contains('explabel-edit') && a.nextElementSibling.dataset.addr === key;
+  // Prefer an edit button INSIDE the anchor; remove legacy sibling if present
+  const legacy = a.nextElementSibling && a.nextElementSibling.classList && a.nextElementSibling.classList.contains('explabel-edit') ? a.nextElementSibling : null;
+  if (legacy) { try { legacy.remove(); } catch (_) {} }
+  const innerEdit = a.querySelector('.explabel-edit');
+  const hasEdit = innerEdit && innerEdit.dataset.addr === key;
   if (!label && hasEdit && !a.dataset.explabelOrig) {
     // No label and already has edit button; nothing else to do
     return;
@@ -212,9 +215,27 @@ function processAnchor(a){
 }
 
 function ensureEditAfter(element, addr) {
+  // For anchors: keep the edit button INSIDE the anchor
+  if (element && element.tagName === 'A') {
+    // Remove any legacy sibling edit button
+    const sib = element.nextElementSibling;
+    if (sib && sib.classList && sib.classList.contains('explabel-edit')) {
+      try { sib.remove(); } catch (_) {}
+    }
+    // Reuse existing inner edit if present
+    let inner = element.querySelector('.explabel-edit');
+    if (inner) {
+      if (inner.dataset.addr !== addr) inner.dataset.addr = addr;
+      return inner;
+    }
+    const btn = createEditButton(addr);
+    element.appendChild(btn);
+    return btn;
+  }
+  // Fallback (non-anchor): insert adjacent
   const next = element.nextElementSibling;
-  if (next && next.classList.contains('explabel-edit') && next.dataset.addr === addr) {
-    return next; // Already exists
+  if (next && next.classList && next.classList.contains('explabel-edit') && next.dataset.addr === addr) {
+    return next;
   }
   const btn = createEditButton(addr);
   element.insertAdjacentElement('afterend', btn);
@@ -495,7 +516,20 @@ function getNote(addr){ const n = labels[addr]?.note; return (typeof n === 'stri
 
 function createNoteIcon(addr){ const s=document.createElement('span'); s.className='explabel-note'; s.dataset.addr=addr; s.textContent='📝'; s.title='Note'; return s; }
 
-function ensureNoteAfter(refEl, addr){ const has = !!getNote(addr); const next = refEl && refEl.nextElementSibling; const isNote = next && next.classList && next.classList.contains('explabel-note') && next.dataset.addr===addr; if (has){ if (!isNote){ const icon=createNoteIcon(addr); refEl.insertAdjacentElement('afterend', icon);} } else { if (isNote){ next.remove(); } } }
+function ensureNoteAfter(refEl, addr){
+  const has = !!getNote(addr);
+  // If refEl is inside an anchor, place the note icon after the anchor (outside link)
+  let container = refEl;
+  const anchor = refEl && refEl.closest && refEl.closest('a');
+  if (anchor && anchor.contains(refEl)) container = anchor;
+  const next = container && container.nextElementSibling;
+  const isNote = next && next.classList && next.classList.contains('explabel-note') && next.dataset.addr===addr;
+  if (has){
+    if (!isNote){ const icon=createNoteIcon(addr); container.insertAdjacentElement('afterend', icon); }
+  } else {
+    if (isNote){ try { next.remove(); } catch (_) {} }
+  }
+}
 
 async function onEditClick(e) {
   e.stopPropagation();
