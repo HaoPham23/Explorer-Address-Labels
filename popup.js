@@ -31,6 +31,7 @@ async function init() {
   const osintAddBtn = document.getElementById('osintAddBtn');
   const searchInput = document.getElementById('searchLabel');
   const searchResultsEl = document.getElementById('searchResults');
+  const openSearchPanelBtn = document.getElementById('openSearchPanel');
 
   let osintSources = await getOsintSources();
   if (!osintSources || !osintSources.length) {
@@ -84,6 +85,11 @@ async function init() {
     });
   };
   if (searchInput) searchInput.addEventListener('input', renderSearch);
+  if (openSearchPanelBtn) openSearchPanelBtn.addEventListener('click', async () => {
+    const q = encodeURIComponent(searchInput?.value || '');
+    const url = chrome.runtime.getURL(`search.html?q=${q}`);
+    await chrome.windows.create({ url, type: 'popup', width: 420, height: 600 });
+  });
 
   osintAddBtn.addEventListener('click', async () => {
     clearMessages();

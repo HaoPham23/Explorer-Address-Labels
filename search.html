@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Search Labels</title>
+  <style>
+    body { margin: 0; padding: 12px; font: 13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif; width: 100%; }
+    .row { margin: 8px 0; }
+    input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; }
+    #results { max-height: 480px; overflow: auto; }
+    .item { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #f2f2f2; }
+    .meta { display:flex; flex-direction:column; }
+    .addr { font-family: monospace; color:#555; }
+    .actions { display:flex; gap:8px; }
+  </style>
+  <script src="utils.js"></script>
+  <script src="search.js" defer></script>
+  </head>
+<body>
+  <div class="row"><input id="q" type="text" placeholder="Search label…" /></div>
+  <div id="results"></div>
+</body>
+</html>
