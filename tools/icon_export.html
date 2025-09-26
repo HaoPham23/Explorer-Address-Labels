@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Icon Exporter</title>
+  <style>
+    body { font: 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; padding: 16px; }
+    .row { margin: 12px 0; }
+    .btn { padding: 6px 12px; border-radius: 8px; border:1px solid #ddd; cursor:pointer; }
+    .grid { display:flex; gap:12px; flex-wrap:wrap; }
+    .thumb { display:flex; flex-direction:column; align-items:center; gap:6px; border:1px dashed #ddd; padding:10px; border-radius:8px; }
+  </style>
+  <script>
+    async function exportPngs() {
+      const src = '../icons/icon.svg';
+      const sizes = [16, 32, 48, 128];
+      const grid = document.getElementById('out'); grid.innerHTML = '';
+      for (const s of sizes) {
+        const url = await svgToPng(src, s, s);
+        const a = document.createElement('a');
+        a.href = url; a.download = `icon-${s}.png`; a.textContent = `Download ${s}x${s}`; a.className = 'btn';
+        const img = document.createElement('img'); img.src = url; img.width = s; img.height = s; img.alt = `${s}`;
+        const wrap = document.createElement('div'); wrap.className = 'thumb';
+        wrap.appendChild(img); wrap.appendChild(a);
+        grid.appendChild(wrap);
+      }
+    }
+    async function svgToPng(svgPath, w, h) {
+      const svgTxt = await fetch(svgPath).then(r=>r.text());
+      const svg = new Blob([svgTxt], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(svg);
+      const img = new Image();
+      img.src = url;
+      await img.decode().catch(()=>new Promise(res=>img.onload=res));
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d');
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      return c.toDataURL('image/png');
+    }
+    window.addEventListener('DOMContentLoaded', exportPngs);
+  </script>
+  </head>
+<body>
+  <div class="row">Icon exporter for the extension. It renders <code>icons/icon.svg</code> to the required PNG sizes.</div>
+  <div id="out" class="grid"></div>
+</body>
+</html>
