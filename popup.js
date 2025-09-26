@@ -69,7 +69,10 @@ async function init() {
       row.className = 'search-item';
       const left = document.createElement('div'); left.className = 'meta';
       const l1 = document.createElement('div'); l1.textContent = it.label;
-      const l2 = document.createElement('div'); l2.textContent = shorten(it.address); l2.className = 'addr';
+      const l2 = document.createElement('div'); l2.textContent = it.address; l2.className = 'addr'; l2.title = 'Click to copy';
+      l2.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(it.address); } catch {}
+      });
       left.appendChild(l1); left.appendChild(l2);
       const btn = document.createElement('button'); btn.textContent = 'Load';
       btn.addEventListener('click', async () => {

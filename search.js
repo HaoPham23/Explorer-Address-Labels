@@ -29,7 +29,10 @@ async function init() {
       row.className = 'item';
       const meta = document.createElement('div'); meta.className = 'meta';
       const l1 = document.createElement('div'); l1.textContent = it.label;
-      const l2 = document.createElement('div'); l2.className='addr'; l2.textContent = shorten(it.address);
+      const l2 = document.createElement('div'); l2.className='addr'; l2.textContent = it.address; l2.title = 'Click to copy';
+      l2.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(it.address); } catch {}
+      });
       meta.appendChild(l1); meta.appendChild(l2);
       const actions = document.createElement('div'); actions.className='actions';
       const openBtn = document.createElement('button'); openBtn.textContent = 'Open';
