@@ -9,6 +9,8 @@ This is a “vibe code” project: experimental, evolving, and provided as‑is 
 
 ## Screenshots
 
+Video demo: [this link](https://www.youtube.com/watch?v=qCwDk1VZpAA).
+
 ![Popup](assets/Screenshot.png)
 
 ![Inline labels](assets/Screenshot-2.png)
